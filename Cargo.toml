@@ -1,0 +1,16 @@
+[package]
+name = "vault_contract"
+version = "0.1.0"
+authors = ["Pollum"]
+edition = "2021"
+
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "3.1.0"
+near-contract-standards = "3.1.0"
+log = "0.4"
+console_log = { version = "0.2", optional = true }
+
