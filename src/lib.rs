@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 use std::fmt;
+use std::collections::HashMap;
 
 use near_contract_standards::storage_management::{
     StorageBalance, StorageBalanceBounds, StorageManagement,
@@ -8,7 +9,7 @@ use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedSet};
 use near_sdk::json_types::{ValidAccountId, U128};
-use near_sdk::{assert_one_yocto, env, log, near_bindgen, AccountId, PanicOnDefault, Promise, ext_contract,BorshStorageKey
+use near_sdk::{assert_one_yocto, env, log, near_bindgen,Balance, AccountId, PanicOnDefault, Promise, ext_contract,BorshStorageKey
 };
 
 use crate::account_deposit::{VAccount, Account};
@@ -51,6 +52,18 @@ pub(crate) enum StorageKey {
     //Guardian,
     AccountTokens {account_id: AccountId},
 }
+
+
+
+#[derive(Serialize, Deserialize, PartialEq)]
+#[serde(crate = "near_sdk::serde")]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Debug))]
+pub struct RefStorageState {
+    pub deposit: U128,
+    pub usage: U128,
+}
+
+
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(crate = "near_sdk::serde")]
@@ -193,6 +206,36 @@ impl Contract {
 
     }
 
+    
+    #[payable]
+    pub fn extend_whitelisted_tokens(&mut self, tokens: Vec<ValidAccountId>) {
+        for token in tokens {
+            self.whitelisted_tokens.insert(token.as_ref());
+        }
+    }
+
+    /// Get contract level whitelisted tokens.
+    pub fn get_whitelisted_tokens(&self) -> Vec<AccountId> {
+        self.whitelisted_tokens.to_vec()
+    }
+
+    /// Get user's storage deposit and needed in the account of current version
+    pub fn get_user_storage_state(&self, account_id: ValidAccountId) -> Option<RefStorageState> {
+        let acc = self.internal_get_account(account_id.as_ref());
+        if let Some(account) = acc {
+            Some(
+                RefStorageState {
+                    deposit: U128(account.near_amount),
+                    usage: U128(account.storage_usage()),
+                }
+            )           
+        } else {
+            None
+        }
+    }
+
+
+
     pub fn call_meta(&self) -> Promise {
         log!("Entrou na parte de teste");
         ext_exchange::metadata(
@@ -213,7 +256,7 @@ impl Contract {
     }
 
     //Para trocar near em wnear
-    pub fn near_to_wrap(&self, receiver_id: AccountId, amount: String, msg: String) -> Promise {
+    fn near_to_wrap(&self, receiver_id: AccountId, amount: String, msg: String){
         //Registro de usuário
         log!("Entrei no near_to_wrap");
         
@@ -238,7 +281,7 @@ impl Contract {
                 1, // yocto NEAR to attach
                 35_000_000_000_000 // gas to attach                
             )
-        )
+        );
 
     }
 
@@ -270,7 +313,7 @@ impl Contract {
         )
     }
 
-
+    
 
     pub fn call_stake(&self, receiver_id: AccountId, token_id: String, amount: U128, msg: String) -> Promise {
         //Registro de usuário
@@ -323,6 +366,107 @@ impl Contract {
             180_000_000_000_000 // gas to attach
         )
     }
+
+
+    pub fn get_deposits(&self, account_id: ValidAccountId) -> HashMap<AccountId, U128> /*StorageBalance*/ {
+
+        let wrapped_account = self.internal_get_account(account_id.as_ref());
+        if let Some(account) = wrapped_account {
+            account.get_tokens()
+                .iter()
+                .map(|token| (token.clone(), U128(account.get_balance(token).unwrap())))
+                .collect()
+        } else {
+            HashMap::new()
+        }
+    }
+
+
+    //Main vault function
+    pub fn add_to_vault(&self, account_id: ValidAccountId, amount: String, msg: String) -> String {
+
+              
+        ///////////////Sending wrap near to ref//////////////////
+        //Getting user's near deposits.
+
+        let acc = self.internal_get_account(account_id.as_ref());
+        let mut x: u128 = 0; 
+        if let Some(account) = acc {
+            Some(
+                x = account.near_amount
+            )     
+        } else {
+            None
+        };
+
+        let amount = x;
+        log!("Esse é o amount do user que vai ser mandado para a ref: {}", amount);
+
+        self.near_to_wrap(CONTRACT_ID.to_string(), amount.to_string(), "".to_string());
+        
+        ///////////////Swapping Near to others///////////////
+        let pool_id_to_swap1 = 4;
+        let pool_id_to_swap2 = 5;
+        let token_in1 = "wrap.testnet".to_string();
+        let token_in2 = "wrap.testnet".to_string();
+        let token_out1 = "eth.fakes.testnet".to_string();
+        let token_out2 = "dai.fakes.testnet".to_string();
+        let min_amount_out = U128(0);
+        let amount_in = Some(U128(amount/2));
+
+        let actions = vec![SwapAction {
+            pool_id: pool_id_to_swap1,//Todo
+            token_in: token_in1,
+            token_out: token_out1,
+            amount_in: amount_in,
+            min_amount_out: min_amount_out,
+        }];
+        self.call_swap(actions, None);
+
+        let actions2 = vec![SwapAction {
+            pool_id: pool_id_to_swap2,//Todo
+            token_in: token_in2,
+            token_out: token_out2,
+            amount_in: amount_in,
+            min_amount_out: min_amount_out,
+        }];
+        self.call_swap(actions2, None);
+
+
+        ///////////////Adding liquidity to the pool///////////////
+        let pool_id_to_add_liquidity = 193;
+        let token_out1 = "eth.fakes.testnet".to_string();
+        let token_out2 = "dai.fakes.testnet".to_string();
+        let tokens = self.get_deposits(account_id);
+        let mut quantity_of_token1 = U128(0);
+        let mut quantity_of_token2 = U128(0);
+        for (key, val) in tokens.iter() {
+            if key.to_string() == token_out1 {quantity_of_token1 = *val;};
+            if key.to_string() == token_out2 {quantity_of_token2 = *val;};
+        };
+        self.call_add_liquidity(pool_id_to_add_liquidity, vec![quantity_of_token1, quantity_of_token2], None);
+
+
+        ///////////////Updating the user balance of tokens and near///////////////
+
+
+        ///////////////Staking new lp tokens///////////////
+
+
+        
+        ///////////////Claiming the reward///////////////
+
+
+
+        "OK!".to_string()
+    }
+
+
+
+
+
+
+
 
     /*
     pub fn withdraw_all(&self, seed_id: String, amount: U128, msg: String) -> Promise {
