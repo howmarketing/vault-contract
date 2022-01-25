@@ -12,6 +12,8 @@ use near_sdk::json_types::{ValidAccountId, U128};
 use near_sdk::{assert_one_yocto, env, log, near_bindgen,Balance, AccountId, PanicOnDefault, Promise, ext_contract,BorshStorageKey
 };
 
+
+
 use crate::account_deposit::{VAccount, Account};
 mod account_deposit;
 //mod owner;
@@ -96,7 +98,6 @@ pub struct Contract {
 }
 
 
-
 const CONTRACT_ID: &str = "exchange.ref-dev.testnet";
 const CONTRACT_ID_WRAP: &str = "wrap.testnet";
 const CONTRACT_ID_FARM: &str = "farm110.ref-dev.testnet";
@@ -114,6 +115,10 @@ pub trait RefExchange {
     fn storage_deposit(
         &mut self, 
         account_id: AccountId,
+    );
+    fn get_deposits(
+        &mut self, 
+        account_id: ValidAccountId,
     );
     fn add_liquidity(
         &mut self,
@@ -200,10 +205,7 @@ impl Contract {
             whitelisted_tokens: UnorderedSet::new(StorageKey::Whitelist),
             //guardians: UnorderedSet::new(StorageKey::Guardian),
             state: RunningState::Running,
-            
         }
-        
-
     }
 
     
@@ -255,23 +257,34 @@ impl Contract {
         )
     }
 
+    fn call_get_deposits(&self, account_id: ValidAccountId) -> Promise {
+        //Registro de usuário
+        log!("Entrei no call_get_deposits");
+        ext_exchange::get_deposits(
+        account_id,    
+        &CONTRACT_ID, // contract account id
+        10000000000000000000000, // yocto NEAR to attach
+        30_000_000_000_000 // gas to attach
+        )
+    }
+
     //Para trocar near em wnear
-    fn near_to_wrap(&self, receiver_id: AccountId, amount: String, msg: String){
+    fn near_to_wrap(&self, receiver_id: AccountId, amount: String, msg: String) {
         //Registro de usuário
         log!("Entrei no near_to_wrap");
-        
+        /*
         ext_wrap::storage_deposit(
             &CONTRACT_ID_WRAP, // contract account id
             1250000000000000000000, // yocto NEAR to attach
-            3_000_000_000_000 // gas to attach
+            35_000_000_000_000 // gas to attach
         )
-        .then(
+        .then(*/
             ext_wrap::near_deposit(
                 &CONTRACT_ID_WRAP, // contract account id
                 amount.parse().unwrap(), // yocto NEAR to attach
                 3_000_000_000_000 // gas to attach
             )
-        )
+        //)
         .then(
             ext_wrap::ft_transfer_call(
                 receiver_id,//receiver_id,
@@ -381,11 +394,11 @@ impl Contract {
         }
     }
 
+    
 
     //Main vault function
-    pub fn add_to_vault(&self, account_id: ValidAccountId, amount: String, msg: String) -> String {
+    pub fn add_to_vault(&self, account_id: ValidAccountId, vault_contract: ValidAccountId /*, amount: String, msg: String*/) -> String {
 
-              
         ///////////////Sending wrap near to ref//////////////////
         //Getting user's near deposits.
 
@@ -393,26 +406,29 @@ impl Contract {
         let mut x: u128 = 0; 
         if let Some(account) = acc {
             Some(
-                x = account.near_amount
+                x = account.storage_usage()
             )     
         } else {
             None
         };
 
-        let amount = x;
+        let amount: u128 = 10000000000000000000;//= x/2;1250000000000000000000
         log!("Esse é o amount do user que vai ser mandado para a ref: {}", amount);
 
         self.near_to_wrap(CONTRACT_ID.to_string(), amount.to_string(), "".to_string());
         
+        
         ///////////////Swapping Near to others///////////////
-        let pool_id_to_swap1 = 4;
-        let pool_id_to_swap2 = 5;
+        let pool_id_to_swap1 = 83;
+        let pool_id_to_swap2 = 84;
         let token_in1 = "wrap.testnet".to_string();
         let token_in2 = "wrap.testnet".to_string();
         let token_out1 = "eth.fakes.testnet".to_string();
         let token_out2 = "dai.fakes.testnet".to_string();
         let min_amount_out = U128(0);
         let amount_in = Some(U128(amount/2));
+
+        log!("Fazendo swap");
 
         let actions = vec![SwapAction {
             pool_id: pool_id_to_swap1,//Todo
@@ -431,30 +447,37 @@ impl Contract {
             min_amount_out: min_amount_out,
         }];
         self.call_swap(actions2, None);
-
+/**/
 
         ///////////////Adding liquidity to the pool///////////////
+         
+         
         let pool_id_to_add_liquidity = 193;
         let token_out1 = "eth.fakes.testnet".to_string();
         let token_out2 = "dai.fakes.testnet".to_string();
-        let tokens = self.get_deposits(account_id);
         let mut quantity_of_token1 = U128(0);
         let mut quantity_of_token2 = U128(0);
+        let tokens = self.call_get_deposits(vault_contract);
+        let deposits = tokens.find("wrap.testnet");
+
         for (key, val) in tokens.iter() {
-            if key.to_string() == token_out1 {quantity_of_token1 = *val;};
+            log!("entrou aqui fora " );
+            if key.to_string() == token_out1 {quantity_of_token1 = *val; log!("entrou aqui " )};
             if key.to_string() == token_out2 {quantity_of_token2 = *val;};
-        };
+        }
+        //log!("{} {}",quantity_of_token1, quantity_of_token2 );
         self.call_add_liquidity(pool_id_to_add_liquidity, vec![quantity_of_token1, quantity_of_token2], None);
+        /**/
 
+        ///////////////Updating the user balance of tokens, near and lp///////////////
 
-        ///////////////Updating the user balance of tokens and near///////////////
 
 
         ///////////////Staking new lp tokens///////////////
 
 
-        
-        ///////////////Claiming the reward///////////////
+
+        ///////////////Claiming the reward///////////////  79928016015510
 
 
 
