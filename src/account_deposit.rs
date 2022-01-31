@@ -357,6 +357,12 @@ impl Contract {
         self.internal_save_account(&account_id, account);
     }
 
+    pub(crate) fn internal_register_account_sub(&mut self, account_id: &AccountId, amount: Balance) {
+        let mut account = self.internal_unwrap_or_default_account(&account_id);
+        account.near_amount -= amount;
+        self.internal_save_account(&account_id, account);
+    }
+
     /// storage withdraw
     pub(crate) fn internal_storage_withdraw(&mut self, account_id: &AccountId, amount: Balance) -> u128 {
         let mut account = self.internal_unwrap_account(&account_id);
