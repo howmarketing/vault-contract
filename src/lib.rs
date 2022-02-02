@@ -157,6 +157,7 @@ pub trait RefExchange {
         &mut self,
         token_id: String,
         amount: U128,
+        unregister: Option<bool>
     );
     
 }
@@ -213,6 +214,10 @@ pub trait Wrapnear {
         amount: String,
         msg: String
     );
+    fn near_withdraw(
+        &mut self,
+        amount: U128,
+    );
 }
 
 
@@ -223,7 +228,9 @@ pub trait VaultContract {
     fn call_get_pool_shares(&mut self, pool_id: u64, account_id: AccountId) -> String;
     fn callback_get_reward(&mut self, token_id: String) -> String;
     fn swap_to_withdraw_all(&mut self);
-    fn near_quantity_to_withdraw(&mut self);
+    fn near_quantity_to_withdraw(&mut self,amount: U128);
+    fn wrap_to_near(&mut self);
+
 }
 
 
@@ -313,10 +320,41 @@ impl Contract {
         ext_exchange::get_deposits(
         account_id,    
         &CONTRACT_ID, // contract account id
-        10000000000000000000000, // yocto NEAR to attach
+        1, // yocto NEAR to attach
         30_000_000_000_000 // gas to attach
         )
     }
+
+
+    #[payable]
+    //Para trocar near em wnear
+    pub fn wrap_to_near(&mut self) {
+
+        assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
+        let is_tokens = match env::promise_result(0) {
+            PromiseResult::NotReady => unreachable!(),
+            PromiseResult::Successful(tokens) => {
+                if let Ok(is_tokens) = near_sdk::serde_json::from_slice::<String>(&tokens) {
+                    is_tokens
+                } else {
+                    env::panic(b"ERR_WRONG_VAL_RECEIVED")
+                }
+            },
+            PromiseResult::Failed => env::panic(b"ERR_CALL_FAILED"),
+        };   
+
+
+
+        ext_wrap::near_withdraw(
+            U128(1),//is_tokens,
+            &CONTRACT_ID_WRAP, // contract account id
+            0, // yocto NEAR to attach
+            3_000_000_000_000 // gas to attach
+        );
+    
+
+    }
+
 
     #[payable]
     //Para trocar near em wnear
@@ -341,7 +379,7 @@ impl Contract {
         if x < amount.parse::<u128>().unwrap() {k = false};
         assert!(k, "ERRO 1: User doesnt have balance.");
 
-        let amount:u128 = x;
+        let amount:u128 = 1000000000000000000000000;//x;
 
         /*
         ext_wrap::storage_deposit(
@@ -699,7 +737,7 @@ impl Contract {
 
 
  
-    pub fn withdraw_all(&self, seed_id: String, amount: U128, msg: String, vault_contract: ValidAccountId) /*-> Promise*/ {
+    pub fn withdraw_all(&mut self, seed_id: String, amount: U128, msg: String, vault_contract: ValidAccountId, account_id: ValidAccountId) /*-> Promise*/ {
 
         //Registro de usuário
         log!("Entrei no withdraw_all");
@@ -723,14 +761,37 @@ impl Contract {
             min_amounts,
             &CONTRACT_ID, // contract account id
             1, // yocto NEAR to attach
-            110_000_000_000_000 // gas to attach
+            7_000_000_000_000 // gas to attach
         ))
-        //.then(self.call_get_deposits(vault_contract.clone()))
-        //.then(ext_self::swap_to_withdraw_all(&env::current_account_id(), 0, 60_000_000_000_000))
-        ;//.then(self.call_get_deposits(vault_contract.clone()))
-        //.then(ext_self::near_quantity_to_withdraw(&env::current_account_id(), 1, 10_000_000_000_000));
+        .then(self.call_get_deposits(vault_contract.clone()))
+        .then(ext_self::swap_to_withdraw_all(&env::current_account_id(), 0, 32_000_000_000_000));
+        self.withdraw_all2(vault_contract, account_id,"1000000000000000000000000".to_string());
+        /*
+        .then(self.call_get_deposits(vault_contract.clone()))
+        .then(ext_self::near_quantity_to_withdraw(&env::current_account_id(), 1, 60_000_000_000_000));
+        //.then(ext_self::wrap_to_near(&env::current_account_id(), 0, 40_000_000_000_000));//////////
+        */
 
+    } 
 
+    #[payable]
+    pub fn withdraw_all2(&mut self, vault_contract: ValidAccountId, account_id: ValidAccountId, amount: String) {
+
+        log!("Entrei no withdraw_all2");
+   
+        let amount: u128 = amount.parse().unwrap();
+        //ext_self::near_quantity_to_withdraw(U128(amount), &env::current_account_id(), 1, 100_000_000_000_000);
+    
+        ext_exchange::withdraw("wrap.testnet".to_string(), U128(amount), Some(false),  &CONTRACT_ID, 1, 70_000_000_000_000)
+        .then(
+            ext_wrap::near_withdraw(
+                U128(amount),
+                &CONTRACT_ID_WRAP, // contract account id
+                1, // yocto NEAR to attach
+                3_000_000_000_000 // gas to attach
+            )
+        );
+        self.internal_register_account(&account_id.to_string(), amount);
     } 
 
     #[private]
@@ -794,31 +855,19 @@ impl Contract {
 
     #[private]
     #[payable]
-    pub fn near_quantity_to_withdraw(&mut self) /*Promise*/ {
+    pub fn near_quantity_to_withdraw(&mut self, amount: U128) /*Promise*/ {
 
-        assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
-        let is_tokens = match env::promise_result(0) {
-            PromiseResult::NotReady => unreachable!(),
-            PromiseResult::Successful(tokens) => {
-                if let Ok(is_tokens) = near_sdk::serde_json::from_slice::<HashMap<AccountId, U128>>(&tokens) {
-                    is_tokens
-                } else {
-                    env::panic(b"ERR_WRONG_VAL_RECEIVED")
-                }
-            },
-            PromiseResult::Failed => env::panic(b"ERR_CALL_FAILED"),
-        };   
-
-        let token_out1 = "wrap.testnet".to_string();
-        let mut quantity_of_token1 = U128(0);
-
-        for (key, val) in is_tokens.iter() {
-            if key.to_string() == token_out1 {quantity_of_token1 = *val};
-        }
-
-        ext_exchange::withdraw("ref.fakes.testnet".to_string(), quantity_of_token1, &CONTRACT_ID, 1, 10_000_000_000_000);
-
+        ext_exchange::withdraw("wrap.testnet".to_string(), amount, Some(false),  &CONTRACT_ID, 1, 70_000_000_000_000)
+        .then(
+            ext_wrap::near_withdraw(
+                amount,
+                &CONTRACT_ID_WRAP, // contract account id
+                1, // yocto NEAR to attach
+                3_000_000_000_000 // gas to attach
+            )
+            );
     }
+ 
 
 
 }
