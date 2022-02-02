@@ -71,15 +71,17 @@ echo $CONTRACT_NAME
 
 
 
-#near call $CONTRACT_NAME storage_deposit '{"account_id": "leopollum.testnet", "registration_only": false}' --accountId leopollum.testnet --gas 300000000000000 --deposit 0.5
+#near call $CONTRACT_NAME storage_deposit '{"account_id": "leopollum.testnet", "registration_only": false}' --accountId leopollum.testnet --gas 300000000000000 --deposit 0.1
 
-#near call $CONTRACT_NAME near_to_wrap '{"account_id": "leopollum.testnet", "receiver_id": "exchange.ref-dev.testnet", "amount": "500000000000000000000000", "msg": ""}' --accountId leopollum.testnet --gas 300000000000000 
+#near call $CONTRACT_NAME near_to_wrap '{"account_id": "leopollum.testnet", "receiver_id": "exchange.ref-dev.testnet", "amount": "100000000000000000000000", "msg": ""}' --accountId leopollum.testnet --gas 300000000000000 
 
 #near call $CONTRACT_NAME add_to_vault '{"account_id": "leopollum.testnet", "vault_contract": "'$CONTRACT_NAME'"}' --accountId leopollum.testnet --gas 300000000000000 --deposit 0.01
 
 #near call $CONTRACT_NAME withdraw_of_reward '{"vault_contract": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.000000000000000000000001
 
-near call $CONTRACT_NAME withdraw_all '{"seed_id": "exchange.ref-dev.testnet@193", "amount": "100000", "msg": "", "vault_contract": "'$CONTRACT_NAME'"}' --accountId leopollum.testnet --gas 300000000000000 
+near call $CONTRACT_NAME withdraw_all '{"seed_id": "exchange.ref-dev.testnet@193", "amount": "173904470178311485196", "msg": "", "vault_contract": "'$CONTRACT_NAME'", "account_id": "leopollum.testnet"}' --accountId leopollum.testnet --gas 300000000000000 
+
+# não mais necessária: near call $CONTRACT_NAME withdraw_all2 '{"vault_contract": "'$CONTRACT_NAME'", "account_id": "leopollum.testnet", "amount": "1000000000000000000000000"}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.000000000000000000000001
 
 
 #near call exchange.ref-dev.testnet remove_liquidity '{"pool_id": 193, "shares": "100000", "min_amounts": ["1", "1"]}' --accountId $CONTRACT_NAME --amount 0.000000000000000000000001
