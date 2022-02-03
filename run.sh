@@ -8,10 +8,33 @@ near dev-deploy --wasmFile ./target/wasm32-unknown-unknown/release/vault_contrac
 source neardev/dev-account.env
 echo $CONTRACT_NAME
 
+#### User register and near deposit in vault contract.
+#near call $CONTRACT_NAME storage_deposit '{"account_id": "leopollum.testnet", "registration_only": false}' --accountId leopollum.testnet --gas 300000000000000 --deposit 0.1
+
+#### Swaping near to wnear and seending to ref.
+#near call $CONTRACT_NAME near_to_wrap '{"account_id": "leopollum.testnet", "receiver_id": "exchange.ref-dev.testnet", "amount": "100000000000000000000000", "msg": ""}' --accountId leopollum.testnet --gas 300000000000000 
+
+#### Swap, add liquidity, save new lp user balance, stake, claim, withdraw
+#near call $CONTRACT_NAME add_to_vault '{"account_id": "leopollum.testnet", "vault_contract": "'$CONTRACT_NAME'"}' --accountId leopollum.testnet --gas 300000000000000 --deposit 0.01
+
+#### Withdraw the farm reward.
+#near call $CONTRACT_NAME withdraw_of_reward '{"vault_contract": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.000000000000000000000001
+
+#### Unstake, swap to wnear and send it to vault contract.
+#near call $CONTRACT_NAME withdraw_all '{"seed_id": "exchange.ref-dev.testnet@193", "amount": "173904470178311485196", "msg": "", "vault_contract": "'$CONTRACT_NAME'", "account_id": "leopollum.testnet"}' --accountId leopollum.testnet --gas 300000000000000 
+
+
+
+
+
+
 
 
 #####Inicializando o contrato #####
 #near call $CONTRACT_NAME new '{"owner_id":"leopollum.testnet", "vault_shares": 0}' --accountId leopollum.testnet
+
+##### Chamando função de registrar usuário #####
+#near call $CONTRACT_NAME call_user_register '{"account_id": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME
 
 
 ###### Transferindo token para o contrato de vault #####
@@ -21,10 +44,6 @@ echo $CONTRACT_NAME
 
 ##### Chamando função de pegar metadata #####
 #near call $CONTRACT_NAME call_meta '{}' --accountId $CONTRACT_NAME
-
-
-##### Chamando função de registrar usuário #####
-#near call $CONTRACT_NAME call_user_register '{"account_id": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME
 
 
 ##### Mandando wnear pra ref #####
@@ -69,19 +88,6 @@ echo $CONTRACT_NAME
 
 #near call $CONTRACT_NAME call_get_deposits '{"account_id":"'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME  --gas 300000000000000 --deposit 0.000000000000000000000001
 
-
-
-#near call $CONTRACT_NAME storage_deposit '{"account_id": "leopollum.testnet", "registration_only": false}' --accountId leopollum.testnet --gas 300000000000000 --deposit 0.1
-
-#near call $CONTRACT_NAME near_to_wrap '{"account_id": "leopollum.testnet", "receiver_id": "exchange.ref-dev.testnet", "amount": "100000000000000000000000", "msg": ""}' --accountId leopollum.testnet --gas 300000000000000 
-
-#near call $CONTRACT_NAME add_to_vault '{"account_id": "leopollum.testnet", "vault_contract": "'$CONTRACT_NAME'"}' --accountId leopollum.testnet --gas 300000000000000 --deposit 0.01
-
-#near call $CONTRACT_NAME withdraw_of_reward '{"vault_contract": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.000000000000000000000001
-
-near call $CONTRACT_NAME withdraw_all '{"seed_id": "exchange.ref-dev.testnet@193", "amount": "173904470178311485196", "msg": "", "vault_contract": "'$CONTRACT_NAME'", "account_id": "leopollum.testnet"}' --accountId leopollum.testnet --gas 300000000000000 
-
-# não mais necessária: near call $CONTRACT_NAME withdraw_all2 '{"vault_contract": "'$CONTRACT_NAME'", "account_id": "leopollum.testnet", "amount": "1000000000000000000000000"}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.000000000000000000000001
 
 
 #near call exchange.ref-dev.testnet remove_liquidity '{"pool_id": 193, "shares": "100000", "min_amounts": ["1", "1"]}' --accountId $CONTRACT_NAME --amount 0.000000000000000000000001
