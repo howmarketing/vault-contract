@@ -357,10 +357,20 @@ impl Contract {
         self.internal_save_account(&account_id, account);
     }
 
+    //this function is the same of internal_register_account but receives amount with string type.
+    pub(crate) fn internal_register_account_string(&mut self, account_id: &AccountId, amount: String) {
+        let mut account = self.internal_unwrap_or_default_account(&account_id);
+        let quantity = amount.parse::<u128>().unwrap();
+        account.near_amount += quantity;
+        self.internal_save_account(&account_id, account);
+    }
+
     pub(crate) fn internal_register_account_sub(&mut self, account_id: &AccountId, amount: Balance) {
         let mut account = self.internal_unwrap_or_default_account(&account_id);
         account.near_amount -= amount;
         self.internal_save_account(&account_id, account);
+        log!("novo amount do user depois de ele ter feito swap = {}",amount);
+
     }
 
     /// storage withdraw
