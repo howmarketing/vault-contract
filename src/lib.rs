@@ -346,6 +346,7 @@ impl Contract {
         //self.internal_register_account_sub(&account_id.to_string(), user_quantity);//quantity);///////////////////todo
         let amount:u128 = user_quantity;// amount.parse::<u128>().unwrap();
         log!("amount que vai pra ref é = {}",amount);
+        
         /*
         ext_wrap::storage_deposit(
             &CONTRACT_ID_WRAP, // contract account id
@@ -706,8 +707,9 @@ impl Contract {
     }
     
     //Withdraw user lps and sending it to vault contract
-    pub fn withdraw_all(&mut self, seed_id: String, amount: String, msg: String, vault_contract: ValidAccountId, account_id: ValidAccountId) /*-> Promise*/ {
+    pub fn withdraw_all(&mut self, seed_id: String, /*amount: String,*/ msg: String, vault_contract: ValidAccountId, account_id: ValidAccountId) /*-> Promise*/ {
 
+        
         let user_lps = self.user_shares.get(&account_id.to_string());
         let mut user_quantity_available_to_withdraw: u128 = 0; 
         if let Some(temp) = user_lps {
@@ -718,6 +720,7 @@ impl Contract {
             None
         };
 
+        /*
         let mut k = true;
         let quantity = amount.parse::<u128>().unwrap();
         if user_quantity_available_to_withdraw < quantity {k = false};
@@ -725,26 +728,32 @@ impl Contract {
 
         let value = user_quantity_available_to_withdraw - quantity;
         self.user_shares.insert(&account_id.to_string(), &value);
+        */
+
+        
+        
+        self.user_shares.insert(&account_id.to_string(), &0);
 
 
         let pool_id: u64 = 193;
         let min_amounts:Vec<U128> = vec![U128(1000),U128(1000)];
-        let amount: u128 = amount.parse().unwrap();
+        //let amount: u128 = amount.parse().unwrap();
 
         //Unstake shares/lps
         ext_farm::withdraw_seed(
             seed_id,
-            U128(quantity).clone(),
+            U128(user_quantity_available_to_withdraw).clone(),//quantity todo
             msg,
             &CONTRACT_ID_FARM, // contract account id
             1, // yocto NEAR to attach
-            108_000_000_000_000 // gas to attach 108
+            180_000_000_000_000 // gas to attach 108 -> 180_000_000_000_000
         )
+        
         .then(
         //Taking off the liquidity
         ext_exchange::remove_liquidity(
             pool_id,
-            U128(quantity),
+            U128(user_quantity_available_to_withdraw),
             min_amounts,
             &CONTRACT_ID, // contract account id
             1, // yocto NEAR to attach
@@ -761,37 +770,30 @@ impl Contract {
 
 
         //Swap tokens to wrap near
-        .then(ext_self::swap_to_withdraw_all(&env::current_account_id(), 0, 41_500_000_000_000))
+        .then(ext_self::swap_to_withdraw_all(&env::current_account_id(), 0, 41_500_000_000_000));
 
+    } 
 
-        .then(ext_exchange::get_deposits(
+    #[payable]
+    pub fn withdraw_all_2(&mut self, vault_contract: ValidAccountId, account_id: ValidAccountId) {
+        
+        ext_exchange::get_deposits(
             vault_contract.clone(),    
             &CONTRACT_ID, // contract account id
             1, // yocto NEAR to attach
-            8_500_000_000_000 // gas to attach
-        ))
-            
+            10_000_000_000_000 // gas to attach 8,5
+        )
 
-        //.then(self.call_get_deposits(vault_contract.clone()))
         //Withdraw wrap near and send to vault
-        .then(ext_self::callback_to_withdraw(&env::current_account_id(), 1, 76_500_000_000_000))//77
-
-        
-        //.then(ext_exchange::withdraw("wrap.testnet".to_string(), U128(amount), Some(false),  &CONTRACT_ID, 1, 70_000_000_000_000))
-        
+        .then(ext_self::callback_to_withdraw(&env::current_account_id(), 1, 78_000_000_000_000))//76,5
         
         //Switching wrap near into near
-        .then(ext_self::callback_to_near_withdraw(account_id, &env::current_account_id(), 1, 12_000_000_000_000)); 
+        .then(ext_self::callback_to_near_withdraw(account_id, &env::current_account_id(), 1, 13_000_000_000_000)); //11
+
+        
+    }
 
 
-        //.then(ext_wrap::near_withdraw(U128(amount), &CONTRACT_ID_WRAP, 1, 3_000_000_000_000));
-
-        //self.internal_register_account(&account_id.to_string(), amount.clone());///////////todo
-
-
-        //Changing user near balance
-
-    } 
 
 
     #[private]
