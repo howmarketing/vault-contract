@@ -245,6 +245,18 @@ impl Contract {
         }
     }
 
+    pub fn get_user_shares(&self, account_id: ValidAccountId) -> Option<String> {
+        let user_shares = self.user_shares.get(&account_id.to_string());
+        if let Some(account) = user_shares {
+            Some(
+               account.to_string()
+            )           
+        } else {
+            None
+        }
+        
+    }
+
     
     //Extend the whitelist of tokens.
     #[payable]
