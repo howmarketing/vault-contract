@@ -8,8 +8,8 @@ use near_contract_standards::storage_management::{
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedSet};
-use near_sdk::json_types::{ValidAccountId, U128};
-use near_sdk::{assert_one_yocto, env, log, near_bindgen, PromiseResult, Balance, AccountId, PanicOnDefault, Promise, ext_contract,BorshStorageKey
+use near_sdk::json_types::{ValidAccountId, U128, U64, Base64VecU8};
+use near_sdk::{assert_one_yocto, env, log, near_bindgen, serde_json, PromiseResult, Balance, Gas,AccountId, PanicOnDefault, Promise, ext_contract,BorshStorageKey
 };
 
 
@@ -98,7 +98,15 @@ pub struct Contract {
 //Contracts addresses.
 const CONTRACT_ID: &str = "exchange.ref-dev.testnet";
 const CONTRACT_ID_WRAP: &str = "wrap.testnet";
-const CONTRACT_ID_FARM: &str = "farm110.ref-dev.testnet";
+const CONTRACT_ID_FARM: &str = "farm.leopollum.testnet";
+const ERR_ONLY_OWNER: &str = "Must be called by owner";
+pub const NO_DEPOSIT: u128 = 0;
+pub const GAS_FOR_COMPUTE_CALL: Gas = 70_000_000_000_000;
+pub const GAS_FOR_COMPUTE_CALLBACK: Gas = 40_000_000_000_000;
+pub const GAS_FOR_SCHEDULE_CALL: Gas = 25_000_000_000_000;
+pub const GAS_FOR_SCHEDULE_CALLBACK: Gas = 5_000_000_000_000;
+const CRON: &str = "cron.in.testnet";
+
 
 
 //Ref exchange functions that we need to call inside the vault.
@@ -160,7 +168,7 @@ pub trait RefExchange {
 
 //Ref farm functions that we need to call inside the vault.
 #[ext_contract(ext_farm)]
-pub trait RefFarming {
+pub trait FluxusFarming {
     fn mft_transfer_call(
         &mut self,
         receiver_id: AccountId,
@@ -224,7 +232,54 @@ pub trait VaultContract {
     fn callback_to_withdraw(&mut self);
     fn callback_to_near_withdraw(&mut self,account_id: ValidAccountId);
     fn callback_stake(&mut self, account_id: ValidAccountId);
+    fn schedule_callback(&mut self, #[callback] #[serializer(borsh)] task_hash: Base64VecU8,);
 
+}
+
+
+
+#[ext_contract(ext_croncat)]
+pub trait ExtCroncat {
+    fn get_slot_tasks(&self, offset: Option<u64>) -> (Vec<Base64VecU8>, U128);
+    fn get_tasks(
+        &self,
+        slot: Option<U128>,
+        from_index: Option<U64>,
+        limit: Option<U64>,
+    ) -> Vec<Task>;
+    fn get_task(&self, task_hash: String) -> Task;
+    fn create_task(
+        &mut self,
+        contract_id: String,
+        function_id: String,
+        cadence: String,
+        recurring: Option<bool>,
+        deposit: Option<U128>,
+        gas: Option<Gas>,
+        arguments: Option<Vec<u8>>,
+    ) -> Base64VecU8;
+    fn remove_task(&mut self, task_hash: Base64VecU8);
+    fn proxy_call(&mut self);
+    fn get_info(
+        &mut self,
+    ) -> (
+        bool,
+        AccountId,
+        U64,
+        U64,
+        [u64; 2],
+        U128,
+        U64,
+        U64,
+        U128,
+        U128,
+        U128,
+        U128,
+        U64,
+        U64,
+        U64,
+        U128,
+    );
 }
 
 
@@ -234,7 +289,7 @@ impl Contract {
 
     //Function that initialize the contract.
     #[init]
-    pub fn new(owner_id: ValidAccountId, vault_shares: u128/*, exchange_fee: u32, referral_fee: u32*/) -> Self {
+    pub fn new(owner_id: ValidAccountId, vault_shares: u128) -> Self {
         Self {
             owner_id: owner_id.as_ref().clone(),
             user_shares: LookupMap::new(StorageKey::UserShares),
@@ -507,6 +562,39 @@ impl Contract {
         .then(ext_self::callback_withdraw_rewards(token_id, &env::current_account_id(), 1, 190_000_000_000_000));//passar exatamente 190
     }
 
+    #[payable]
+    pub fn take_the_reward(&mut self) {
+
+        let token_id = "ref.fakes.testnet".to_string();
+        let seed_id = "exchange.ref-dev.testnet@193".to_string();
+
+        self.call_claim(seed_id.clone())  
+        //.then(self.call_get_reward(env::current_account_id().try_into().unwrap(), "ref.fakes.testnet".try_into().unwrap()))
+        ;
+        //.then(ext_self::callback_withdraw_rewards(token_id, &env::current_account_id(), 1, 190_000_000_000_000));//passar exatamente 190
+    }
+
+    #[payable]
+    pub fn test_swap(&mut self) {
+
+        let pool_id_to_swap1 = 83;
+        let token_in1 = "wrap.testnet".to_string();
+        let token_out1 = "eth.fakes.testnet".to_string();
+        let min_amount_out = U128(0);
+        let amount_in = Some(U128(100000000));
+
+        let actions = vec![SwapAction {
+            pool_id: pool_id_to_swap1,//Todo
+            token_in: token_in1,
+            token_out: token_out1,
+            amount_in: amount_in,
+            min_amount_out: min_amount_out,
+        }];
+        //self.call_swap(actions, None);
+        ext_exchange::swap( actions, None, &CONTRACT_ID, 1, 15_000_000_000_000);
+        //near call exchange.ref-dev.testnet swap '{"actions": [{"pool_id": "83","token_in":"wrap.testnet","amount_in":"99","token_out": "eth.fakes.testnet","min_amount_out: "0"}],"referral_id": null}' --accountId dev-1643376891746-20538337921288  --gas 300000000000000 --deposit 0.000000000000000000000001
+
+    }
 
     //Responsible to add liquidity and stake 
     #[private]
@@ -931,7 +1019,73 @@ impl Contract {
 
 
 
+    //Croncat schedule implementation:
+    #[payable]
+    pub fn schedule(&mut self, function_id: String, period: String) -> Promise {
+        /*  */
+        assert_eq!(
+            env::current_account_id(),
+            env::predecessor_account_id(),
+            "{}",
+            ERR_ONLY_OWNER
+        );
+      
+        // NOTE: Could check that the balance supplied is enough to cover XX task calls.
+
+        ext_croncat::create_task(
+            env::current_account_id(),
+            function_id,
+            period,
+            Some(true),
+            Some(U128::from(NO_DEPOSIT)),
+            Some(GAS_FOR_COMPUTE_CALL), // 30 Tgas
+            None,
+            &CRON.clone(),
+            env::attached_deposit(),
+            GAS_FOR_SCHEDULE_CALL,
+        )
+        .then(ext_self::schedule_callback(
+            &env::current_account_id(),
+            NO_DEPOSIT,
+            GAS_FOR_SCHEDULE_CALLBACK,
+        ))
+    }
+
+    /// Get the task hash, and store in state
+    #[private]
+    pub fn schedule_callback(&mut self, #[callback] task_hash: Base64VecU8) {
+        log!("schedule_callback task_hash {:?}", &task_hash);
+        //self.task_hash = Some(task_hash);
+        
+    }
+
+
+    pub fn status(&self, task_hash: Base64VecU8) -> Promise {
+        // NOTE: fix this! serialization is not working
+        let hash = task_hash.clone();
+        log!(
+            "TASK HASH: {:?} {:?} {}",
+            &hash,
+            serde_json::to_string(&hash).unwrap(),
+            serde_json::to_string(&hash).unwrap()
+        );
+        ext_croncat::get_task(
+            // hash,
+            serde_json::to_string(&hash).unwrap().to_string(),
+            &CRON,
+            NO_DEPOSIT,
+            25_000_000_000_000,
+        )
+        .then(ext_self::schedule_callback(
+            &env::current_account_id(),
+            NO_DEPOSIT,
+            25_000_000_000_000,
+        ))
+    }/**/
+
+
 }
+
 
 
 /// Internal methods implementation.
