@@ -840,41 +840,45 @@ impl Contract {
     #[private]
     pub fn callback_update_user_balance(&mut self, account_id: ValidAccountId ) -> String {
         
-        assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
-        let shares = match env::promise_result(0) {
+    assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
+        let vault_shares_on_pool = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
             PromiseResult::Successful(tokens) => {
                 if let Ok(shares) = near_sdk::serde_json::from_slice::<String>(&tokens) {
-                    shares
+                    shares.parse::<u128>().unwrap()
                 } else {
                     env::panic(b"ERR_WRONG_VAL_RECEIVED")
                 }
-            },
+            }
             PromiseResult::Failed => env::panic(b"ERR_CALL_FAILED"),
-        };  
-
-        let x = shares.parse::<u128>().unwrap() - self.vault_shares;
-        let y = self.user_shares.get(&account_id.to_string());
-
-        let mut k: u128 = 0;
-
-        if shares.parse::<u128>().unwrap() > self.vault_shares {
-            if let Some(yy) = y {
-                log!("x + y = {} + {}", x , yy);
-
-                Some(
-                    k = yy + x
-                )     
-            } else {
-                None 
-            };
-            self.user_shares.insert(account_id.to_string(), k);
-            log!("user_shares= {}", k);
-            
         };
-        self.vault_shares = shares.parse::<u128>().unwrap();
 
-        shares
+        log!("doing vault_shares_on_pool - vault_shares == {} - {}", vault_shares_on_pool.clone(), self.vault_shares.clone());
+
+        let shares_added_to_pool = vault_shares_on_pool - self.vault_shares;
+        // let user_shares = self.user_shares.get(&account_id.to_string());
+        let user_shares = self.get_user_shares(account_id.clone());
+
+        log!("user_shares at the moment == {:?}", user_shares.clone());
+        if user_shares == None {
+            self.user_shares.insert(account_id.to_string(), 0);
+         }
+
+        let mut new_user_balance: u128 = 0;
+
+        if vault_shares_on_pool > self.vault_shares {
+            if let Some(x) = self.get_user_shares(account_id.clone()) {
+                log!("doing user_shares + shares_added_to_pool == {} + {}", x.clone(), shares_added_to_pool.clone());
+                Some(new_user_balance = x.parse::<u128>().unwrap() + shares_added_to_pool)
+            } else {
+                None
+            };
+            self.user_shares.insert(account_id.to_string(), new_user_balance);
+            log!("User_shares= {}", new_user_balance);
+        };
+        self.vault_shares = vault_shares_on_pool;
+
+        vault_shares_on_pool.to_string()
     }
 
     //Get the reward claimed and withdraw it.
