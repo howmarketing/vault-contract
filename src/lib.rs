@@ -404,36 +404,43 @@ impl Contract {
     }
 
     #[payable]
-    pub fn auto_function(&mut self) {
+    pub fn auto_function_1(&mut self) {
 
-        //Claim & Withdraw 
-        //self.withdraw_of_reward(env::current_account_id().try_into().unwrap());
-
-    
-        //Get vault's deposit
-        ext_exchange::get_deposits(
-            env::current_account_id().try_into().unwrap(),    
-            &CONTRACT_ID, // contract account id
+        //it will fail if the account has not ref token
+        ext_reffakes::ft_transfer_call( 
+            "exchange.ref-dev.testnet".to_string(),//receiver_id,
+            "10000000000000000".to_string(), //0.01 refs todo change hardcoded
+            "".to_string(),
+            &"ref.fakes.testnet", // contract account id
             1, // yocto NEAR to attach
-            9_000_000_000_000 // gas to attach
+            45_000_000_000_000 // gas to attach   //was 50
         )
 
-
-        //Swap ref tokens
-        .then(ext_self::swap_to_auto(&env::current_account_id(), 0, 41_500_000_000_000))
-
-
-        //get quantity
+        //Get vault's deposit
         .then(ext_exchange::get_deposits(
             env::current_account_id().try_into().unwrap(),    
             &CONTRACT_ID, // contract account id
             1, // yocto NEAR to attach
-            8_500_000_000_000 // gas to attach
+            9_000_000_000_000 // gas to attach
         ))
 
+        //Swap ref tokens
+        .then(ext_self::swap_to_auto(&env::current_account_id(), 0, 41_500_000_000_000));
+
+    }
+    
+    #[payable]
+    pub fn auto_function_2(&mut self) {
+
+        ext_exchange::get_deposits(
+        env::current_account_id().try_into().unwrap(),    
+        &CONTRACT_ID, // contract account id
+        1, // yocto NEAR to attach
+        9_000_000_000_000 // gas to attach
+        )
 
         //add liquidity and stake once again
-        .then(ext_self::stake_and_liquidity_auto(//todo change something
+        .then(ext_self::stake_and_liquidity_auto(
             env::current_account_id().try_into().unwrap(),
             env::current_account_id().try_into().unwrap(), 
             &env::current_account_id(), 
@@ -443,7 +450,6 @@ impl Contract {
 
     }
 
-
     //Function to claim and take off the reward from the farm contract to exchange contract.
     #[payable]
     pub fn withdraw_of_reward(&mut self) {
@@ -451,17 +457,21 @@ impl Contract {
         let token_id = "ref.fakes.testnet".to_string();
         let seed_id = "exchange.ref-dev.testnet@193".to_string();
 
-        self.call_claim(seed_id.clone())  
-        .then(self.call_get_reward(env::current_account_id().try_into().unwrap(), "ref.fakes.testnet".try_into().unwrap()))
-        .then(ext_self::callback_withdraw_rewards(token_id, &env::current_account_id(), 1, 190_000_000_000_000))//passar exatamente 190
-        .then(ext_reffakes::ft_transfer_call( 
-            "exchange.ref-dev.testnet".to_string(),//receiver_id,
-            "5000000000000000000".to_string(),//5 refs
-            "".to_string(),
-            &"ref.fakes.testnet", // contract account id
+        ext_farm::claim_reward_by_seed(
+            seed_id,
+            &CONTRACT_ID_FARM2, // contract account id
+            0, // yocto NEAR to attach
+            20_000_000_000_000 // gas to attach//was 40?
+        )
+        .then(ext_farm::get_reward(
+            env::current_account_id().try_into().unwrap(),
+            "ref.fakes.testnet".try_into().unwrap(),
+            &CONTRACT_ID_FARM2, // contract account id
             1, // yocto NEAR to attach
-            50_000_000_000_000 // gas to attach   
-        ));
+            3_000_000_000_000 // gas to attach
+        ))
+        .then(ext_self::callback_withdraw_rewards(token_id, &env::current_account_id(), 1, 190_000_000_000_000))//passar exatamente 190
+        ;
     
     }
 
@@ -496,7 +506,6 @@ impl Contract {
         }
        
         let pool_id: u64 = 193;
-        let seed_id = "exchange.ref-dev.testnet@193".to_string();
 
 
         //Adding liquidity
@@ -510,8 +519,8 @@ impl Contract {
               0, // yocto NEAR to attach
               10_000_000_000_000 // gas to attach
         ))
+        //the users balance will be update here
         .then(ext_self::callback_to_balance(&env::current_account_id(), 0, 15_000_000_000_000))
-        //todo: verificar a passagem do parâmetro shares daqui pra la
         .then(ext_self::callback_stake(account_id.clone(), &env::current_account_id(), 0, 90_000_000_000_000));
 
     }
@@ -543,6 +552,8 @@ impl Contract {
                 vec.insert(account.to_string(), *val);
             }
 
+            //Cant write everything here cause i cant use self.user_shares.iter() and, after it, use  self.user_shares.insert(account, new_user_balance);
+            //It is an rust limitation maybe?
             ext_self::balance_actualization(vec, shares.clone(), &env::current_account_id(), 1, 5_000_000_000_000);
             
         };
@@ -562,12 +573,13 @@ impl Contract {
         for (account, val) in vec
         {
             log!("total = {}", total);
-            log!("val/total = {}", val/total);
+            log!("val = {}", val);
+            log!("val/total = {}", (val as f64 / total as f64));
 
-            let y = new_shares_quantity * (val/total);
-            let x = val + y;
-            log!("{} tinha {} mas estou somando {} e agora terá = {}", account, val, y, x );
-            self.user_shares.insert(account, x); 
+            let extra_shares_for_user: u128 = ((new_shares_quantity as f64 * (val as f64 / total as f64))*(0.999)) as u128 ; //todo: Change 0,999
+            let new_user_balance = val + extra_shares_for_user;
+            log!("{} tinha {} mas estou somando {} e agora terá = {}", account, val, extra_shares_for_user, new_user_balance );
+            self.user_shares.insert(account, new_user_balance); 
             
         }
 
@@ -608,7 +620,7 @@ impl Contract {
             ext_wrap::near_deposit(
                 &CONTRACT_ID_WRAP, // contract account id
                 amount.to_string().parse().unwrap(), // yocto NEAR to attach
-                3_000_000_000_000 // gas to attach
+                5_000_000_000_000 // gas to attach
             )
         //)
         .then(
@@ -618,7 +630,7 @@ impl Contract {
                 msg,
                 &CONTRACT_ID_WRAP, // contract account id
                 1, // yocto NEAR to attach
-                35_000_000_000_000 // gas to attach                
+                45_000_000_000_000 // gas to attach                
             )
         );
 
@@ -862,7 +874,7 @@ impl Contract {
         log!("user_shares at the moment == {:?}", user_shares.clone());
         if user_shares == None {
             self.user_shares.insert(account_id.to_string(), 0);
-         }
+        }
 
         let mut new_user_balance: u128 = 0;
 
