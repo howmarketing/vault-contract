@@ -7,7 +7,7 @@ near dev-deploy --wasmFile ./res/vault_contract.wasm
 source neardev/dev-account.env
 echo $CONTRACT_NAME
 
-username='mesto.testnet'
+username=''
 echo $username
  
 #### Initialize contract
@@ -36,6 +36,7 @@ near call ref.fakes.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", 
 #### Swap, add liquidity, save new lp user balance, stake, claim, withdraw
 # near call $CONTRACT_NAME add_to_vault '{"account_id": "'$username'", "vault_contract": "'$CONTRACT_NAME'"}' --accountId $username --gas 300000000000000 --deposit 0.01
 
+
 #### Withdraw the farm reward.
 # near call $CONTRACT_NAME withdraw_of_reward '{"vault_contract": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.000000000000000000000001
 
@@ -53,3 +54,4 @@ near call ref.fakes.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", 
 #near call $CONTRACT_NAME withdraw_of_reward '{}' --accountId $CONTRACT_NAME --gas 230000000000000 --deposit 0.000000000000000000000001
 #near call $CONTRACT_NAME auto_function_1 '{}' --accountId $CONTRACT_NAME --gas 200000000000000 
 #near call $CONTRACT_NAME auto_function_2 '{}' --accountId $CONTRACT_NAME --gas 230000000000000 
+

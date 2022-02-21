@@ -370,6 +370,7 @@ impl Contract {
     ) {
         let mut account = self.internal_unwrap_or_default_account(&account_id);
         account.near_amount -= amount;
+        log!("novo balance depois de diminuir = {}",account.near_amount);
         self.internal_save_account(&account_id, account);
     }
 
