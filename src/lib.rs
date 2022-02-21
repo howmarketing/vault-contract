@@ -473,6 +473,7 @@ impl Contract {
         ));
     }
 
+    /// Read shares for each account registered.
     #[private]
     pub fn callback_to_balance(&mut self) -> String {
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
@@ -511,6 +512,7 @@ impl Contract {
         shares
     }
 
+    /// Update user balances based on the user's percentage in the Vault.
     #[payable]
     #[private]
     pub fn balance_actualization(&mut self, vec: HashMap<AccountId, u128>, shares: String) {
@@ -523,14 +525,16 @@ impl Contract {
         }
         for (account, val) in vec {
             let extra_shares_for_user: u128 =
-                ((new_shares_quantity as f64 * (val as f64 / total as f64)) * (0.999)) as u128; //TODO: Change 0.999
+                //TODO: 0.999 to insure that it will not be given more shares than it has
+                //      Find better way to handle the computation below
+                ((new_shares_quantity as f64 * (val as f64 / total as f64)) * (0.999)) as u128;
             let new_user_balance = val + extra_shares_for_user;
             self.user_shares.insert(account, new_user_balance);
         }
     }
 
-    #[payable]
     /// Function to swap near to wnear and send it to ref.
+    #[payable]
     pub fn near_to_wrap(
         &mut self,
         account_id: ValidAccountId,
@@ -776,6 +780,7 @@ impl Contract {
         quantity_eth_dai
     }
 
+    /// Receives shares from auto-compound and stake it
     #[private]
     pub fn callback_stake(&mut self, account_id: ValidAccountId) {
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
@@ -1050,6 +1055,7 @@ impl Contract {
         self.internal_register_account_string(&account_id.to_string(), amount.clone());
     }
 
+    /// Take out wnear from ref-exchange and send it to Vault contract.
     #[private]
     #[payable]
     pub fn callback_to_withdraw(&mut self) -> U128 {
@@ -1089,6 +1095,7 @@ impl Contract {
         quantity_of_token
     }
 
+    /// Swap pool tokens to wnear
     #[private]
     #[payable]
     pub fn swap_to_withdraw_all(&mut self) {
@@ -1152,6 +1159,7 @@ impl Contract {
         ext_exchange::swap(actions2, None, &CONTRACT_ID_REF_EXC, 1, 15_000_000_000_000);
     }
 
+    /// Swap the auto-compound rewards to ETH and DAI
     #[private]
     #[payable]
     pub fn swap_to_auto(&mut self) {

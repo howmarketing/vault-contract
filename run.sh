@@ -2,12 +2,12 @@
 ./build.sh
 
 #Deploy with near-dev
-near dev-deploy --wasmFile ./target/wasm32-unknown-unknown/release/vault_contract.wasm
+near dev-deploy --wasmFile ./res/vault_contract.wasm
 
 source neardev/dev-account.env
 echo $CONTRACT_NAME
 
-username=''
+username='mesto.testnet'
 echo $username
  
 #### Initialize contract
@@ -28,13 +28,13 @@ near call wrap.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", "regi
 near call ref.fakes.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", "registration_only": false}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.00125
 
 #### Register user and add value to contract
-near call $CONTRACT_NAME storage_deposit '{"account_id": "'$username'", "registration_only": false}' --accountId $username --gas 300000000000000 --deposit 5
+# near call $CONTRACT_NAME storage_deposit '{"account_id": "'$username'", "registration_only": false}' --accountId $username --gas 300000000000000 --deposit 5
 
 #### Swaping near to wnear and sending to ref.
-near call $CONTRACT_NAME near_to_wrap '{"account_id": "'$username'", "receiver_id": "exchange.ref-dev.testnet", "amount": "10000000000000000000000", "msg": ""}' --accountId $username --gas 300000000000000 
+# near call $CONTRACT_NAME near_to_wrap '{"account_id": "'$username'", "receiver_id": "exchange.ref-dev.testnet", "amount": "10000000000000000000000", "msg": ""}' --accountId $username --gas 300000000000000 
 
 #### Swap, add liquidity, save new lp user balance, stake, claim, withdraw
-near call $CONTRACT_NAME add_to_vault '{"account_id": "'$username'", "vault_contract": "'$CONTRACT_NAME'"}' --accountId $username --gas 300000000000000 --deposit 0.01
+# near call $CONTRACT_NAME add_to_vault '{"account_id": "'$username'", "vault_contract": "'$CONTRACT_NAME'"}' --accountId $username --gas 300000000000000 --deposit 0.01
 
 #### Withdraw the farm reward.
 # near call $CONTRACT_NAME withdraw_of_reward '{"vault_contract": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.000000000000000000000001
@@ -45,11 +45,11 @@ near call $CONTRACT_NAME add_to_vault '{"account_id": "'$username'", "vault_cont
 
 
 #### Start croncat tasks responsible for auto-compound 
-#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "withdraw_of_reward","cadence": " */19 * * * * *","recurring": true,"deposit": "1","gas": 230000000000000}' --accountId $CONTRACT_NAME --amount 5 --gas 300000000000000 
-#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "auto_function_1","cadence": " */20 * * * * *","recurring": true,"deposit": "0","gas": 200000000000000}' --accountId $CONTRACT_NAME --amount 5 --gas 300000000000000
-#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "auto_function_2","cadence": " */20 * * * * *","recurring": true,"deposit": "0","gas": 230000000000000}' --accountId $CONTRACT_NAME --amount 5 --gas 300000000000000
+#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "withdraw_of_reward","cadence": " * */50 * * * *","recurring": true,"deposit": "1","gas": 230000000000000}' --accountId $CONTRACT_NAME --amount 5 --gas 300000000000000 
+#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "auto_function_1","cadence": " * */50 * * * *","recurring": true,"deposit": "0","gas": 200000000000000}' --accountId $CONTRACT_NAME --amount 5 --gas 300000000000000
+#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "auto_function_2","cadence": " * */50 * * * *","recurring": true,"deposit": "0","gas": 230000000000000}' --accountId $CONTRACT_NAME --amount 5 --gas 300000000000000
 
+#### Functions managed by auto-compound
 #near call $CONTRACT_NAME withdraw_of_reward '{}' --accountId $CONTRACT_NAME --gas 230000000000000 --deposit 0.000000000000000000000001
-
 #near call $CONTRACT_NAME auto_function_1 '{}' --accountId $CONTRACT_NAME --gas 200000000000000 
 #near call $CONTRACT_NAME auto_function_2 '{}' --accountId $CONTRACT_NAME --gas 230000000000000 
