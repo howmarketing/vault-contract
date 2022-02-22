@@ -1,16 +1,15 @@
 //! Account deposit is information per user about their balances in the exchange.
 
-use std::collections::HashMap;
-use near_sdk::collections::UnorderedMap;
 use near_contract_standards::fungible_token::core_impl::ext_fungible_token;
+use near_sdk::collections::UnorderedMap;
+use std::collections::HashMap;
 
+use crate::token_receiver::ext_self;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::{ValidAccountId, U128};
 use near_sdk::{
-    assert_one_yocto, env, near_bindgen, 
-    AccountId, Balance, PromiseResult, StorageUsage,Gas,
+    assert_one_yocto, env, near_bindgen, AccountId, Balance, Gas, PromiseResult, StorageUsage,
 };
-use crate::token_receiver::{ext_self};
 
 use crate::*;
 
@@ -47,8 +46,6 @@ pub enum VAccount {
     Current(Account),
 }
 
-
-
 impl VAccount {
     /// Upgrades from other versions to the currently used version.
     pub fn into_current(self, account_id: &AccountId) -> Account {
@@ -64,7 +61,6 @@ impl From<Account> for VAccount {
         VAccount::Current(account)
     }
 }
-
 
 /// Account deposits information and storage cost.
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -102,19 +98,20 @@ impl Account {
 
     pub fn get_tokens(&self) -> Vec<AccountId> {
         let mut a: Vec<AccountId> = self.tokens.keys().collect();
-        let b: Vec<AccountId> = self.legacy_tokens
-            .keys()
-            .cloned()
-            .collect();
+        let b: Vec<AccountId> = self.legacy_tokens.keys().cloned().collect();
         a.extend(b);
         a
     }
 
     /// Deposit amount to the balance of given token,
-    /// if given token not register and not enough storage, deposit fails 
-    pub(crate) fn deposit_with_storage_check(&mut self, token: &AccountId, amount: Balance) -> bool { 
+    /// if given token not register and not enough storage, deposit fails
+    pub(crate) fn deposit_with_storage_check(
+        &mut self,
+        token: &AccountId,
+        amount: Balance,
+    ) -> bool {
         if let Some(balance) = self.tokens.get(token) {
-            // token has been registered, just add without storage check, 
+            // token has been registered, just add without storage check,
             let new_balance = balance + amount;
             self.tokens.insert(token, &new_balance);
             true
@@ -150,7 +147,7 @@ impl Account {
     /// Panics if `amount` is bigger than the current balance.
     pub(crate) fn withdraw(&mut self, token: &AccountId, amount: Balance) {
         if let Some(x) = self.legacy_tokens.remove(token) {
-            // need convert to 
+            // need convert to
             assert!(x >= amount, "{}", "E22: not enough tokens in deposit");
             self.tokens.insert(token, &(x - amount));
         } else if let Some(x) = self.tokens.get(token) {
@@ -164,10 +161,10 @@ impl Account {
     // [AUDIT_01]
     /// Returns amount of $NEAR necessary to cover storage used by this data structure.
     pub fn storage_usage(&self) -> Balance {
-        (INIT_ACCOUNT_STORAGE + 
-            self.legacy_tokens.len() as u64 * (ACC_ID_AS_KEY_STORAGE + U128_STORAGE) + 
-            self.tokens.len() as u64 * (KEY_PREFIX_ACC + ACC_ID_AS_KEY_STORAGE + U128_STORAGE)
-        ) as u128
+        (INIT_ACCOUNT_STORAGE
+            + self.legacy_tokens.len() as u64 * (ACC_ID_AS_KEY_STORAGE + U128_STORAGE)
+            + self.tokens.len() as u64 * (KEY_PREFIX_ACC + ACC_ID_AS_KEY_STORAGE + U128_STORAGE))
+            as u128
             * env::storage_byte_cost()
     }
 
@@ -206,7 +203,7 @@ impl Account {
         }
     }
 
-    /// Unregisters `token_id` from this account balance.
+    /// Unregister `token_id` from this account balance.
     /// Panics if the `token_id` balance is not 0.
     pub(crate) fn unregister(&mut self, token_id: &AccountId) {
         let amount = self.legacy_tokens.remove(token_id).unwrap_or_default();
@@ -295,7 +292,7 @@ impl Contract {
                         // cause storage already checked, here can directly save
                         self.accounts.insert(&sender_id, &account.into());
                     } else {
-                        // we can ensure that internal_get_account here would NOT cause a version upgrade, 
+                        // we can ensure that internal_get_account here would NOT cause a version upgrade,
                         // cause it is callback, the account must be the current version or non-exist,
                         // so, here we can just leave it without insert, won't cause storage collection inconsistency.
                         env::log(
@@ -326,7 +323,6 @@ impl Contract {
 }
 
 impl Contract {
-
     /// Checks that account has enough storage to be stored and saves it into collection.
     /// This should be only place to directly use `self.accounts`.
     pub(crate) fn internal_save_account(&mut self, account_id: &AccountId, account: Account) {
@@ -344,9 +340,7 @@ impl Contract {
         } else {
             env::panic("ERR: non-whitelisted token can NOT deposit into lost-found.".as_bytes());
         }
-        
     }
-    
 
     /// Registers account in deposited amounts with given amount of $NEAR.
     /// If account already exists, adds amount to it.
@@ -358,14 +352,22 @@ impl Contract {
     }
 
     //this function is the same of internal_register_account but receives amount with string type.
-    pub(crate) fn internal_register_account_string(&mut self, account_id: &AccountId, amount: String) {
+    pub(crate) fn internal_register_account_string(
+        &mut self,
+        account_id: &AccountId,
+        amount: String,
+    ) {
         let mut account = self.internal_unwrap_or_default_account(&account_id);
         let quantity = amount.parse::<u128>().unwrap();
         account.near_amount += quantity;
         self.internal_save_account(&account_id, account);
     }
 
-    pub(crate) fn internal_register_account_sub(&mut self, account_id: &AccountId, amount: Balance) {
+    pub(crate) fn internal_register_account_sub(
+        &mut self,
+        account_id: &AccountId,
+        amount: Balance,
+    ) {
         let mut account = self.internal_unwrap_or_default_account(&account_id);
         account.near_amount -= amount;
         log!("novo balance depois de diminuir = {}",account.near_amount);
@@ -373,7 +375,11 @@ impl Contract {
     }
 
     /// storage withdraw
-    pub(crate) fn internal_storage_withdraw(&mut self, account_id: &AccountId, amount: Balance) -> u128 {
+    pub(crate) fn internal_storage_withdraw(
+        &mut self,
+        account_id: &AccountId,
+        amount: Balance,
+    ) -> u128 {
         let mut account = self.internal_unwrap_account(&account_id);
         let available = account.storage_available();
         assert!(available > 0, "ERR_NO_STORAGE_CAN_WITHDRAW");
@@ -381,7 +387,10 @@ impl Contract {
         if amount == 0 {
             withdraw_amount = available;
         }
-        assert!(withdraw_amount <= available, "ERR_STORAGE_WITHDRAW_TOO_MUCH");
+        assert!(
+            withdraw_amount <= available,
+            "ERR_STORAGE_WITHDRAW_TOO_MUCH"
+        );
         account.near_amount -= withdraw_amount;
         self.internal_save_account(&account_id, account);
         withdraw_amount
@@ -397,8 +406,7 @@ impl Contract {
     ) {
         let mut account = self.internal_unwrap_account(sender_id);
         assert!(
-            self.whitelisted_tokens.contains(token_id) 
-                || account.get_balance(token_id).is_some(),
+            self.whitelisted_tokens.contains(token_id) || account.get_balance(token_id).is_some(),
             "{}",
             "E12: token not whitelisted"
         );
@@ -449,7 +457,7 @@ impl Contract {
             1,
             GAS_FOR_FT_TRANSFER,
         )
-        .then(ext_self::exchange_callback_post_withdraw( //arrumar ext ai
+        .then(ext_self::exchange_callback_post_withdraw(
             token_id.clone(),
             sender_id.clone(),
             U128(amount),
@@ -458,6 +466,4 @@ impl Contract {
             GAS_FOR_RESOLVE_TRANSFER,
         ))
     }
-
-    
 }
