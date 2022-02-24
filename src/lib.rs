@@ -83,6 +83,7 @@ pub struct Contract {
     accounts: LookupMap<AccountId, VAccount>,
     whitelisted_tokens: UnorderedSet<AccountId>,
     state: RunningState,
+    last_reward_amount: HashMap<String, u128>
 }
 
 // Contracts addresses.
@@ -168,14 +169,14 @@ pub trait VaultContract {
         #[serializer(borsh)]
         task_hash: Base64VecU8,
     );
-    fn swap_to_auto(&mut self);
+    fn swap_to_auto(&mut self, farm_id:String);
     fn callback_to_balance(&mut self);
     fn stake_and_liquidity_auto(
         &mut self,
         account_id: ValidAccountId,
         vault_contract: ValidAccountId,
     );
-    fn balance_actualization(&mut self, vec: HashMap<AccountId, u128>, shares: String);
+    fn balance_update(&mut self, vec: HashMap<AccountId, u128>, shares: String);
 }
 
 #[ext_contract(ext_reffakes)]
@@ -248,6 +249,7 @@ impl Contract {
             accounts: LookupMap::new(StorageKey::Accounts),
             whitelisted_tokens: UnorderedSet::new(StorageKey::Whitelist),
             state: RunningState::Running,
+            last_reward_amount: HashMap::new()
         }
     }
 
@@ -330,14 +332,14 @@ impl Contract {
 
     /// Transfer lp tokens to ref-exchange then swap the amount the contract has in the exchange
     #[payable]
-    pub fn auto_function_1(&mut self) {
+    pub fn auto_function_1(&mut self,farm_id:String) {
         /* TODO:
             a) Add callback to handle failed txs
             b) Send all tokens to exchange, instead of 0.01 each iteration
         */
         ext_reffakes::ft_transfer_call(
             "exchange.ref-dev.testnet".to_string(), // receiver_id,
-            "10000000000000000".to_string(),        // 0.01 refs
+            self.last_reward_amount.get(&farm_id).unwrap().to_string(), //Amount after withdraw the rewards
             "".to_string(),
             &"ref.fakes.testnet", // contract account id
             1,                    // yocto NEAR to attach
@@ -350,8 +352,9 @@ impl Contract {
             1,                    // yocto NEAR to attach
             9_000_000_000_000,    // gas to attach
         ))
-        // Swap ref tokens
+        // Swap ref tokens and atualize the reward amount
         .then(ext_self::swap_to_auto(
+            farm_id,
             &env::current_account_id(),
             0,
             41_500_000_000_000,
@@ -501,7 +504,7 @@ impl Contract {
                 Cant write everything here because it is not possible to use self.user_shares.iter() and, after it, use self.user_shares.insert(account, new_user_balance);
                 Is it a rust limitation maybe?
             */
-            ext_self::balance_actualization(
+            ext_self::balance_update(
                 vec,
                 shares.clone(),
                 &env::current_account_id(),
@@ -515,7 +518,7 @@ impl Contract {
     /// Update user balances based on the user's percentage in the Vault.
     #[payable]
     #[private]
-    pub fn balance_actualization(&mut self, vec: HashMap<AccountId, u128>, shares: String) {
+    pub fn balance_update(&mut self, vec: HashMap<AccountId, u128>, shares: String) {
         let new_shares_quantity = shares.parse::<u128>().unwrap();
         log!("new_shares_quantity is equal to {}", new_shares_quantity,);
 
@@ -849,26 +852,34 @@ impl Contract {
     #[private]
     pub fn callback_withdraw_rewards(&mut self, token_id: String) -> U128 {
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
-        let shares = match env::promise_result(0) {
+        let amount = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
             PromiseResult::Successful(tokens) => {
-                if let Ok(shares) = near_sdk::serde_json::from_slice::<U128>(&tokens) {
+                if let Ok(amount) = near_sdk::serde_json::from_slice::<U128>(&tokens) {
                     ext_farm::withdraw_reward(
                         token_id,
-                        shares,
+                        amount,
                         "false".to_string(),
                         &CONTRACT_ID_FARM2,  // contract account id
                         1,                   // yocto NEAR to attach
                         180_000_000_000_000, // gas to attach
                     );
-                    shares
+                    amount
                 } else {
                     env::panic(b"ERR_WRONG_VAL_RECEIVED")
                 }
             }
             PromiseResult::Failed => env::panic(b"ERR_CALL_FAILED"),
         };
-        shares
+
+        //Storing reward amount 
+        let amount_in_u128: u128 = amount.into();
+        let residue: u128 = *self.last_reward_amount.get(&"ref-finance.testnet@193#1".to_string()).unwrap();
+
+        self.last_reward_amount.insert("ref-finance.testnet@193#1".to_string(), (amount_in_u128 + residue));
+        log!("print: {}", (amount_in_u128 + residue) );
+
+        amount
     }
 
     /// Swap wnear added and stake it.
@@ -1162,7 +1173,7 @@ impl Contract {
     /// Swap the auto-compound rewards to ETH and DAI
     #[private]
     #[payable]
-    pub fn swap_to_auto(&mut self) {
+    pub fn swap_to_auto(&mut self, farm_id:String) {
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let is_tokens = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -1215,7 +1226,11 @@ impl Contract {
             min_amount_out: min_amount_out,
         }];
         ext_exchange::swap(actions2, None, &CONTRACT_ID_REF_EXC, 1, 15_000_000_000_000);
+        //Update of reward amount
+        self.last_reward_amount.insert(farm_id, 0);
+        
     }
+
 }
 
 /// Internal methods implementation.
