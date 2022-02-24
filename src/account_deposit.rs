@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use crate::token_receiver::ext_self;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::json_types::{ValidAccountId, U128};
+use near_sdk::json_types::U128;
 use near_sdk::{
     assert_one_yocto, env, near_bindgen, AccountId, Balance, Gas, PromiseResult, StorageUsage,
 };
@@ -17,8 +17,8 @@ use crate::*;
 // const MAX_ACCOUNT_LENGTH: u128 = 64;
 // const MAX_ACCOUNT_BYTES: u128 = MAX_ACCOUNT_LENGTH + 4;
 // const MIN_ACCOUNT_DEPOSIT_LENGTH: u128 = 1 + MAX_ACCOUNT_BYTES + 16 + 4;
-pub const GAS_FOR_RESOLVE_TRANSFER: Gas = 20_000_000_000_000;
-pub const GAS_FOR_FT_TRANSFER: Gas = 20_000_000_000_000;
+pub const GAS_FOR_RESOLVE_TRANSFER: Gas = Gas(20_000_000_000_000);
+pub const GAS_FOR_FT_TRANSFER: Gas = Gas(20_000_000_000_000);
 
 const U128_STORAGE: StorageUsage = 16;
 const U64_STORAGE: StorageUsage = 8;
@@ -28,7 +28,7 @@ const ACC_ID_STORAGE: StorageUsage = 64;
 /// As a key, 4 bytes length would be added to the head
 const ACC_ID_AS_KEY_STORAGE: StorageUsage = ACC_ID_STORAGE + 4;
 const KEY_PREFIX_ACC: StorageUsage = 64;
-/// As a near_sdk::collection key, 1 byte for prefiex
+/// As a near_sdk::collection key, 1 byte for prefix
 const ACC_ID_AS_CLT_KEY_STORAGE: StorageUsage = ACC_ID_AS_KEY_STORAGE + 1;
 
 // ACC_ID: the Contract accounts map key length
@@ -154,7 +154,7 @@ impl Account {
             assert!(x >= amount, "{}", "E22: not enough tokens in deposit");
             self.tokens.insert(token, &(x - amount));
         } else {
-            env::panic("E21: token not registered".as_bytes());
+            env::panic_str("E21: token not registered");
         }
     }
 
@@ -194,9 +194,9 @@ impl Account {
     }
 
     /// Registers given token and set balance to 0.
-    pub(crate) fn register(&mut self, token_ids: &Vec<ValidAccountId>) {
+    pub(crate) fn register(&mut self, token_ids: &Vec<AccountId>) {
         for token_id in token_ids {
-            let t = token_id.as_ref();
+            let t = token_id;
             if self.get_balance(t).is_none() {
                 self.tokens.insert(t, &0);
             }
@@ -218,7 +218,7 @@ impl Contract {
     /// Registers given token in the user's account deposit.
     /// Fails if not enough balance on this account to cover storage.
     #[payable]
-    pub fn register_tokens(&mut self, token_ids: Vec<ValidAccountId>) {
+    pub fn register_tokens(&mut self, token_ids: Vec<AccountId>) {
         assert_one_yocto();
         self.assert_contract_running();
         let sender_id = env::predecessor_account_id();
@@ -230,13 +230,13 @@ impl Contract {
     /// Unregister given token from user's account deposit.
     /// Panics if the balance of any given token is non 0.
     #[payable]
-    pub fn unregister_tokens(&mut self, token_ids: Vec<ValidAccountId>) {
+    pub fn unregister_tokens(&mut self, token_ids: Vec<AccountId>) {
         assert_one_yocto();
         self.assert_contract_running();
         let sender_id = env::predecessor_account_id();
         let mut account = self.internal_unwrap_account(&sender_id);
         for token_id in token_ids {
-            account.unregister(token_id.as_ref());
+            account.unregister(&token_id);
         }
         self.internal_save_account(&sender_id, account);
     }
@@ -247,7 +247,7 @@ impl Contract {
     #[payable]
     pub fn withdraw(
         &mut self,
-        token_id: ValidAccountId,
+        token_id: AccountId,
         amount: U128,
         unregister: Option<bool>,
     ) -> Promise {
@@ -295,22 +295,22 @@ impl Contract {
                         // we can ensure that internal_get_account here would NOT cause a version upgrade,
                         // cause it is callback, the account must be the current version or non-exist,
                         // so, here we can just leave it without insert, won't cause storage collection inconsistency.
-                        env::log(
+                        env::log_str(
                             format!(
                                 "Account {} has not enough storage. Depositing to owner.",
                                 sender_id
                             )
-                            .as_bytes(),
+                            .as_ref(),
                         );
                         failed = true;
                     }
                 } else {
-                    env::log(
+                    env::log_str(
                         format!(
                             "Account {} is not registered. Depositing to owner.",
                             sender_id
                         )
-                        .as_bytes(),
+                        .as_ref(),
                     );
                     failed = true;
                 }
@@ -338,7 +338,7 @@ impl Contract {
             lostfound.deposit(token_id, amount);
             self.accounts.insert(&self.owner_id, &lostfound.into());
         } else {
-            env::panic("ERR: non-whitelisted token can NOT deposit into lost-found.".as_bytes());
+            env::panic_str("ERR: non-whitelisted token can NOT deposit into lost-found.");
         }
     }
 
@@ -370,7 +370,10 @@ impl Contract {
     ) {
         let mut account = self.internal_unwrap_or_default_account(&account_id);
         account.near_amount -= amount;
-        log!("novo balance depois de diminuir = {}",account.near_amount);
+        log!(
+            "the new balance after subtracting = {}",
+            account.near_amount
+        );
         self.internal_save_account(&account_id, account);
     }
 
@@ -453,7 +456,7 @@ impl Contract {
             sender_id.clone(),
             U128(amount),
             None,
-            token_id,
+            token_id.clone(),
             1,
             GAS_FOR_FT_TRANSFER,
         )
@@ -461,7 +464,7 @@ impl Contract {
             token_id.clone(),
             sender_id.clone(),
             U128(amount),
-            &env::current_account_id(),
+            env::current_account_id(),
             0,
             GAS_FOR_RESOLVE_TRANSFER,
         ))
