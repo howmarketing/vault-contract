@@ -1,12 +1,8 @@
-
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{ PromiseOrValue,ext_contract};
-
+use near_sdk::{ext_contract, PromiseOrValue};
 
 use crate::*;
-
-
 
 /// Message parameters to receive via token function call.
 #[derive(Serialize, Deserialize)]
@@ -15,12 +11,12 @@ use crate::*;
 enum TokenReceiverMessage {
     /// Alternative to deposit + execute actions call.
     Execute {
-        referral_id: Option<ValidAccountId>,
+        referral_id: Option<AccountId>,
+        // TODO: remove if not used
         // List of sequential actions.
         //actions: Vec<Action>,
     },
 }
-
 
 #[ext_contract(ext_self)]
 pub trait RefExchange {
@@ -30,56 +26,8 @@ pub trait RefExchange {
         sender_id: AccountId,
         amount: U128,
     );
-    fn metadata(
-        &mut self,
-    );
-
+    fn metadata(&mut self);
 }
-
-
-
-/*
-pub fn my_method(&self) -> Promise {
-    ext_1::metadata()
-}
-*/
-
-/*
-impl Contract {
-    /// Executes set of actions on virtual account.
-    /// Returns amounts to send to the sender directly.
-    fn internal_direct_actions(
-        &mut self,
-        token_in: AccountId,
-        amount_in: Balance,
-        referral_id: Option<AccountId>,
-        actions: &[Action],
-    ) -> Vec<(AccountId, Balance)> {
-
-        // let @ be the virtual account
-        let mut account: Account = Account::new(&String::from(VIRTUAL_ACC));
-
-        account.deposit(&token_in, amount_in);
-        let _ = self.internal_execute_actions(
-            &mut account,
-            &referral_id,
-            &actions,
-            ActionResult::Amount(U128(amount_in)),
-        );
-
-        let mut result = vec![];
-        for (token, amount) in account.tokens.to_vec() {
-            if amount > 0 {
-                result.push((token.clone(), amount));
-            }
-        }
-        account.tokens.clear();
-
-        result
-    }
-
-}
-*/
 
 #[near_bindgen]
 impl FungibleTokenReceiver for Contract {
@@ -88,23 +36,25 @@ impl FungibleTokenReceiver for Contract {
     #[allow(unreachable_code)]
     fn ft_on_transfer(
         &mut self,
-        sender_id: ValidAccountId,
+        sender_id: AccountId,
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
         self.assert_contract_running();
-        ext_self::metadata(        
-            &env::current_account_id(),
-            0, // yocto NEAR to attach
-            5_000_000_000_000 // gas to attach
+        ext_self::metadata(
+            env::current_account_id(),
+            0,                      // yocto NEAR to attach
+            Gas(5_000_000_000_000), // gas to attach
         );
         let token_in = env::predecessor_account_id();
+        // TODO: remove if not used
         //if msg.is_empty() {
-            // Simple deposit.
-            self.internal_deposit(sender_id.as_ref(), &token_in, amount.into());
-            PromiseOrValue::Value(U128(0))
-       // } 
-       /*else {
+        // Simple deposit.
+        self.internal_deposit(&sender_id, &token_in, amount.into());
+        PromiseOrValue::Value(U128(0))
+        // TODO: remove if not used
+        // }
+        /*else {
             // instant swap
             let message =
                 serde_json::from_str::<TokenReceiverMessage>(&msg).expect(ERR28_WRONG_MSG_FORMAT);
