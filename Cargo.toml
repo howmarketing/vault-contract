@@ -1,6 +1,6 @@
 [package]
 name = "vault_contract"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Pollum"]
 edition = "2021"
 
@@ -9,9 +9,8 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-near-sdk = "3.1.0"
-near-contract-standards = "3.1.0"
+near-sdk = { git = "https://github.com/near/near-sdk-rs", tag = "4.0.0-pre.3"}
+near-contract-standards = { git = "https://github.com/near/near-sdk-rs", tag = "4.0.0-pre.3" } 
 futures = "0.3"
 log = "0.4"
 console_log = { version = "0.2", optional = true }
-

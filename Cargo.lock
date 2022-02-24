@@ -359,9 +359,8 @@ checksum = "8452105ba047068f40ff7093dd1d9da90898e63dd61736462e9cdda6a90ad3c3"
 
 [[package]]
 name = "near-contract-standards"
-version = "3.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7421d0a5c7aeb57b37a0cf3a71a7aefbbdc7727f9811d9dd86fa55e4f0de4d3"
+version = "4.0.0-pre.3"
+source = "git+https://github.com/near/near-sdk-rs?tag=4.0.0-pre.3#47d46a54e12c973be58623dfc52f8274362be314"
 dependencies = [
  "near-sdk",
 ]
@@ -423,15 +422,15 @@ dependencies = [
 
 [[package]]
 name = "near-sdk"
-version = "3.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7383e242d3e07bf0951e8589d6eebd7f18bb1c1fc5fbec3fad796041a6aebd1"
+version = "4.0.0-pre.3"
+source = "git+https://github.com/near/near-sdk-rs?tag=4.0.0-pre.3#47d46a54e12c973be58623dfc52f8274362be314"
 dependencies = [
  "base64",
  "borsh",
  "bs58",
  "near-primitives-core",
  "near-sdk-macros",
+ "near-sys",
  "near-vm-logic",
  "serde",
  "serde_json",
@@ -439,10 +438,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "near-sdk-core"
-version = "3.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "284a78d9eb8eda58330462fa0023a6d7014c941df1f0387095e7dfd1dc0f2bce"
+name = "near-sdk-macros"
+version = "4.0.0-pre.3"
+source = "git+https://github.com/near/near-sdk-rs?tag=4.0.0-pre.3#47d46a54e12c973be58623dfc52f8274362be314"
 dependencies = [
  "Inflector",
  "proc-macro2",
@@ -451,16 +449,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "near-sdk-macros"
-version = "3.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2037337438f97d1ce5f7c896cf229dc56dacd5c01142d1ef95a7d778cde6ce7d"
-dependencies = [
- "near-sdk-core",
- "proc-macro2",
- "quote",
- "syn",
-]
+name = "near-sys"
+version = "0.1.0"
+source = "git+https://github.com/near/near-sdk-rs?tag=4.0.0-pre.3#47d46a54e12c973be58623dfc52f8274362be314"
 
 [[package]]
 name = "near-vm-errors"
@@ -715,7 +706,7 @@ checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
 
 [[package]]
 name = "vault_contract"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "console_log",
  "futures",
