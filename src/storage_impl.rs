@@ -5,11 +5,10 @@ impl StorageManagement for Contract {
     #[payable]
     fn storage_deposit(
         &mut self,
-        account_id: Option<ValidAccountId>,
+        account_id: Option<AccountId>,
         registration_only: Option<bool>,
     ) -> StorageBalance {
         self.assert_contract_running();
-        
         let amount = env::attached_deposit();
         let account_id = account_id
             .map(|a| a.into())
@@ -18,7 +17,7 @@ impl StorageManagement for Contract {
         let min_balance = self.storage_balance_bounds().min.0;
         let already_registered = self.accounts.contains_key(&account_id);
         if amount < min_balance && !already_registered {
-            env::panic(b"ERR_DEPOSIT_LESS_THAN_MIN_STORAGE");
+            env::panic_str("ERR_DEPOSIT_LESS_THAN_MIN_STORAGE");
         }
         /**/
         /**/
@@ -39,7 +38,6 @@ impl StorageManagement for Contract {
         } else {
             self.internal_register_account(&account_id, amount);
         }
-        
         self.storage_balance_of(account_id.try_into().unwrap())
             .unwrap()
     }
@@ -83,56 +81,11 @@ impl StorageManagement for Contract {
         }
     }
 
-    fn storage_balance_of(&self, account_id: ValidAccountId) -> Option<StorageBalance> {
-        self.internal_get_account(account_id.as_ref())
-            .map(|account| 
-                { 
-                    StorageBalance {
-                        total: U128(account.near_amount),
-                        available: U128(account.storage_available()),
-                    } 
-                })
+    fn storage_balance_of(&self, account_id: AccountId) -> Option<StorageBalance> {
+        self.internal_get_account(&account_id)
+            .map(|account| StorageBalance {
+                total: U128(account.near_amount),
+                available: U128(account.storage_available()),
+            })
     }
-
 }
-
-
-/*
-
-use near_sdk::json_types::{ValidAccountId, U128};
-use near_sdk::serde::Serialize;
-
-
-pub trait TokenManagement {
-    fn user_tokens(&self, account_id: ValidAccountId) -> Option<StorageBalance>;
-}
-
-
-#[derive(Serialize)]
-#[serde(crate = "near_sdk::serde")]
-pub struct StorageBalance2 {
-    pub total: U128,
-    pub available: U128,
-    pub sla: U128,
-
-}
-
-/// Implements users storage management for the pool.
-#[near_bindgen]
-impl TokenManagement for Contract {
-
-
-    fn user_tokens(&self, account_id: ValidAccountId) -> StorageBalance2 {
-        self.internal_get_account(account_id.as_ref())
-            .map(|account| 
-                { 
-                    StorageBalance2 {
-                        total: U128(account.near_amount),
-                        available: U128(account.storage_available()),
-                        sla: U128(account.storage_available()),
-
-                    } 
-                })
-    }
-
-}*/
