@@ -381,21 +381,14 @@ impl Contract {
     #[payable]
     pub fn withdraw_of_reward(&mut self) {
         let token_id = CONTRACT_ID_REF_TESTNET.parse().unwrap();
-        let seed_id = "exchange.ref-dev.testnet@193".to_string();
 
-        ext_farm::claim_reward_by_seed(
-            seed_id,
-            CONTRACT_ID_FARM.parse().unwrap(), // contract account id
-            0,                                 // yocto NEAR to attach
-            Gas(20_000_000_000_000),           // gas to attach//was 40?
-        )
-        .then(ext_farm::get_reward(
+        ext_farm::get_reward(
             env::current_account_id().try_into().unwrap(),
             CONTRACT_ID_REF_TESTNET.parse().unwrap(),
             CONTRACT_ID_FARM.parse().unwrap(), // contract account id
             1,                                 // yocto NEAR to attach
             Gas(3_000_000_000_000),            // gas to attach
-        ))
+        )
         .then(ext_self::callback_withdraw_rewards(
             token_id,
             env::current_account_id(),
@@ -405,6 +398,20 @@ impl Contract {
         ));
     }
 
+    /// Function to claim the reward from the farm contract
+    #[payable]
+    pub fn claim_reward(&mut self) {
+        let seed_id = "exchange.ref-dev.testnet@193".to_string();
+
+        ext_farm::claim_reward_by_seed(
+            seed_id,
+            CONTRACT_ID_FARM.parse().unwrap(), // contract account id
+            0,                                 // yocto NEAR to attach
+            Gas(40_000_000_000_000),           // gas to attach//was 40?
+        );
+    }
+
+        
     /// Auto-compound function.
     ///
     /// Responsible to add liquidity and stake.
@@ -866,14 +873,19 @@ impl Contract {
 
         //Storing reward amount
         let amount_in_u128: u128 = amount.into();
+
+        if self.last_reward_amount.get(&"ref-finance.testnet@193#1".to_string()) == None {
+            self.last_reward_amount.insert("ref-finance.testnet@193#1".to_string(), 0);
+        }
+
         let residue: u128 = *self
             .last_reward_amount
             .get(&"ref-finance.testnet@193#1".to_string())
             .unwrap();
-
+            
         self.last_reward_amount.insert(
             "ref-finance.testnet@193#1".to_string(),
-            (amount_in_u128 + residue),
+            amount_in_u128 + residue,
         );
         log!("print: {}", (amount_in_u128 + residue));
 
