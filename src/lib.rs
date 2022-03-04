@@ -474,16 +474,19 @@ impl Contract {
         &mut self,
         account_id: AccountId,
         receiver_id: AccountId,
-        amount: String,
         msg: String,
     ) {
+        let mut have_balance = true;
         let acc = self.internal_get_account(&account_id);
         let mut user_quantity: u128 = 0;
         if let Some(account) = acc {
             Some(user_quantity = account.storage_available())
         } else {
+            have_balance=false;
             None
         };
+
+        assert!(have_balance, "ERROR 1: User doesnt have balance.");
 
         let amount: u128 = user_quantity;
         ext_wrap::near_deposit(
