@@ -11,7 +11,7 @@ use near_sdk::collections::{LookupMap, UnorderedSet};
 use near_sdk::json_types::{Base64VecU8, U128, U64};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
-    assert_one_yocto, env, ext_contract, log, near_bindgen, AccountId, BorshStorageKey, Gas,
+    assert_one_yocto, env, ext_contract, log, near_bindgen, AccountId, BorshStorageKey, Gas, Balance,
     PanicOnDefault, Promise, PromiseResult,
 };
 
@@ -92,10 +92,6 @@ const CONTRACT_ID_WRAP_TESTNET: &str = "wrap.testnet";
 const CONTRACT_ID_EHT_TESTNET: &str = "eth.fakes.testnet";
 const CONTRACT_ID_DAI_TESTNET: &str = "dai.fakes.testnet";
 
-pub const NO_DEPOSIT: u128 = 0;
-pub const GAS_FOR_COMPUTE_CALL: Gas = Gas(70_000_000_000_000);
-pub const GAS_FOR_COMPUTE_CALLBACK: Gas = Gas(40_000_000_000_000);
-
 
 // Ref exchange functions that we need to call inside the vault.
 #[ext_contract(ext_exchange)]
@@ -146,22 +142,13 @@ pub trait VaultContract {
     fn callback_to_balance(&mut self);
     fn stake_and_liquidity_auto(&mut self, account_id: AccountId, vault_contract: AccountId);
     fn balance_actualization(&mut self, vec: HashMap<AccountId, u128>, shares: String);
+    fn add_near_balance(&mut self, account_id: AccountId, amount_available: u128);
+    fn sub_near_balance(&mut self, account_id: AccountId, amount_available: u128);
 }
 
 #[ext_contract(ext_reffakes)]
 pub trait ExtRefFakes {
     fn ft_transfer_call(&mut self, receiver_id: AccountId, amount: String, msg: String);
-}
-
-#[ext_contract(ext_croncat)]
-pub trait ExtCroncat {
-    fn get_slot_tasks(&self, offset: Option<u64>) -> (Vec<Base64VecU8>, U128);
-    fn get_tasks(&self, slot: Option<U128>, from_index: Option<U64>, limit: Option<U64>) -> Vec<Task>;
-    fn get_task(&self, task_hash: String) -> Task;
-    fn create_task(&mut self, contract_id: String, function_id: String, cadence: String, recurring: Option<bool>, deposit: Option<U128>, gas: Option<Gas>, arguments: Option<Vec<u8>>,) -> Base64VecU8;
-    fn remove_task(&mut self, task_hash: Base64VecU8);
-    fn proxy_call(&mut self);
-    fn get_info(&mut self) -> ( bool, AccountId, U64, U64, [u64; 2], U128, U64, U64, U128, U128, U128, U128, U64, U64, U64, U128);
 }
 
 #[near_bindgen]
@@ -745,7 +732,7 @@ impl Contract {
     /// Swap wnear added and stake it.
     #[payable]
     pub fn add_to_vault(&mut self, account_id: AccountId, vault_contract: AccountId) -> String {
-        let acc = self.internal_get_account(&account_id);
+        let acc = self.internal_get_account(&account_id.clone());
         let mut amount_available: u128 = 0;
         if let Some(account) = acc {
             Some(amount_available = account.storage_available())
@@ -773,7 +760,7 @@ impl Contract {
                 env::current_account_id(),
                 0,
                 Gas(3_000_000_000_000),
-            ));
+        ));
 
         ///////////////Swapping Near to others///////////////
         let pool_id_to_swap1 = 356;
@@ -813,9 +800,10 @@ impl Contract {
             CONTRACT_ID_REF_EXC.parse().unwrap(),
             1,
             Gas(15_000_000_000_000),
-        );
+        )//;
 
-        self.internal_register_account_sub(&account_id, amount_available);
+        //.then(ext_self::internal_register_account_sub(account_id.clone(), amount_available,env::current_account_id(), 0, Gas(2_000_000_000_000)));
+        .then(ext_self::add_near_balance(account_id.clone(), amount_available, env::current_account_id(), 0, Gas(2_000_000_000_000)));
 
         ///////////////Adding liquidity, staking ///////////////
         self.call_get_deposits(vault_contract.clone())
@@ -827,6 +815,13 @@ impl Contract {
             Gas(200_000_000_000_000),
         ));
         "OK!".to_string()
+    }
+
+    pub fn add_near_balance( &mut self,account_id: AccountId, amount_available: u128){
+        self.internal_register_account_sub(&account_id.clone(), amount_available);
+    }
+    pub fn sub_near_balance( &mut self,account_id: AccountId, amount_available: u128){
+        self.internal_register_account(&account_id.clone(), amount_available);
     }
 
     /// Withdraw user lps and send it to the Vault contract.
@@ -906,7 +901,7 @@ impl Contract {
             account_id,
             env::current_account_id(),
             1,
-            Gas(13_000_000_000_000),
+            Gas(20_000_000_000_000),
         ));
     }
 
@@ -930,8 +925,9 @@ impl Contract {
             CONTRACT_ID_WRAP_TESTNET.parse().unwrap(),
             1,
             Gas(3_000_000_000_000),
-        );
-        self.internal_register_account_string(&account_id, amount.clone());
+        )
+        .then(ext_self::sub_near_balance(account_id.clone(), amount.parse::<u128>().unwrap(), env::current_account_id(), 0, Gas(5_000_000_000_000)));
+
     }
 
     /// Take out wnear from ref-exchange and send it to Vault contract.
