@@ -11,7 +11,7 @@ use near_sdk::collections::{LookupMap, UnorderedSet};
 use near_sdk::json_types::{Base64VecU8, U128, U64};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
-    assert_one_yocto, env, ext_contract, log, near_bindgen, AccountId, BorshStorageKey, Gas,
+    assert_one_yocto, env, ext_contract, log, near_bindgen, AccountId, BorshStorageKey, Gas, Balance,
     PanicOnDefault, Promise, PromiseResult,
 };
 
@@ -92,34 +92,18 @@ const CONTRACT_ID_WRAP_TESTNET: &str = "wrap.testnet";
 const CONTRACT_ID_EHT_TESTNET: &str = "eth.fakes.testnet";
 const CONTRACT_ID_DAI_TESTNET: &str = "dai.fakes.testnet";
 
-pub const NO_DEPOSIT: u128 = 0;
-pub const GAS_FOR_COMPUTE_CALL: Gas = Gas(70_000_000_000_000);
-pub const GAS_FOR_COMPUTE_CALLBACK: Gas = Gas(40_000_000_000_000);
-pub const GAS_FOR_SCHEDULE_CALL: Gas = Gas(25_000_000_000_000);
-pub const GAS_FOR_SCHEDULE_CALLBACK: Gas = Gas(5_000_000_000_000);
 
 // Ref exchange functions that we need to call inside the vault.
 #[ext_contract(ext_exchange)]
 pub trait RefExchange {
-    fn exchange_callback_post_withdraw(
-        &mut self,
-        token_id: AccountId,
-        sender_id: AccountId,
-        amount: U128,
-    );
+    fn exchange_callback_post_withdraw(&mut self, token_id: AccountId, sender_id: AccountId, amount: U128);
     fn get_pool_shares(&mut self, pool_id: u64, account_id: AccountId);
     fn metadata(&mut self);
     fn storage_deposit(&mut self, account_id: AccountId);
     fn get_deposits(&mut self, account_id: AccountId);
     fn add_liquidity(&mut self, pool_id: u64, amounts: Vec<U128>, min_amounts: Option<Vec<U128>>);
     fn swap(&mut self, actions: Vec<SwapAction>, referral_id: Option<AccountId>);
-    fn mft_transfer_call(
-        &mut self,
-        receiver_id: AccountId,
-        token_id: String,
-        amount: U128,
-        msg: String,
-    );
+    fn mft_transfer_call(&mut self, receiver_id: AccountId, token_id: String, amount: U128, msg: String);
     fn remove_liquidity(&mut self, pool_id: u64, shares: U128, min_amounts: Vec<U128>);
     fn withdraw(&mut self, token_id: String, amount: U128, unregister: Option<bool>);
 }
@@ -127,13 +111,7 @@ pub trait RefExchange {
 // Ref farm functions that we need to call inside the vault.
 #[ext_contract(ext_farm)]
 pub trait FluxusFarming {
-    fn mft_transfer_call(
-        &mut self,
-        receiver_id: AccountId,
-        token_id: String,
-        amount: U128,
-        msg: String,
-    );
+    fn mft_transfer_call(&mut self, receiver_id: AccountId, token_id: String, amount: U128, msg: String);
     fn claim_reward_by_seed(&mut self, seed_id: String);
     fn withdraw_seed(&mut self, seed_id: String, amount: U128, msg: String);
     fn withdraw_reward(&mut self, token_id: String, amount: U128, unregister: String);
@@ -152,11 +130,7 @@ pub trait Wrapnear {
 // Vault functions that we need to call like a callback.
 #[ext_contract(ext_self)]
 pub trait VaultContract {
-    fn callback_stake_liquidity(
-        &mut self,
-        account_id: AccountId,
-        vault_contract: AccountId,
-    ) -> Vec<U128>;
+    fn callback_stake_liquidity(&mut self, account_id: AccountId, vault_contract: AccountId) -> Vec<U128>;
     fn callback_update_user_balance(&mut self, account_id: AccountId) -> String;
     fn call_get_pool_shares(&mut self, pool_id: u64, account_id: AccountId) -> String;
     fn callback_withdraw_rewards(&mut self, token_id: String) -> String;
@@ -164,65 +138,17 @@ pub trait VaultContract {
     fn callback_to_withdraw(&mut self);
     fn callback_to_near_withdraw(&mut self, account_id: AccountId);
     fn callback_stake(&mut self, account_id: AccountId);
-    fn schedule_callback(
-        &mut self,
-        #[callback]
-        #[serializer(borsh)]
-        task_hash: Base64VecU8,
-    );
     fn swap_to_auto(&mut self, farm_id: String);
     fn callback_to_balance(&mut self);
     fn stake_and_liquidity_auto(&mut self, account_id: AccountId, vault_contract: AccountId);
     fn balance_actualization(&mut self, vec: HashMap<AccountId, u128>, shares: String);
+    fn add_near_balance(&mut self, account_id: AccountId, amount_available: u128);
+    fn sub_near_balance(&mut self, account_id: AccountId, amount_available: u128);
 }
 
 #[ext_contract(ext_reffakes)]
 pub trait ExtRefFakes {
     fn ft_transfer_call(&mut self, receiver_id: AccountId, amount: String, msg: String);
-}
-
-#[ext_contract(ext_croncat)]
-pub trait ExtCroncat {
-    fn get_slot_tasks(&self, offset: Option<u64>) -> (Vec<Base64VecU8>, U128);
-    fn get_tasks(
-        &self,
-        slot: Option<U128>,
-        from_index: Option<U64>,
-        limit: Option<U64>,
-    ) -> Vec<Task>;
-    fn get_task(&self, task_hash: String) -> Task;
-    fn create_task(
-        &mut self,
-        contract_id: String,
-        function_id: String,
-        cadence: String,
-        recurring: Option<bool>,
-        deposit: Option<U128>,
-        gas: Option<Gas>,
-        arguments: Option<Vec<u8>>,
-    ) -> Base64VecU8;
-    fn remove_task(&mut self, task_hash: Base64VecU8);
-    fn proxy_call(&mut self);
-    fn get_info(
-        &mut self,
-    ) -> (
-        bool,
-        AccountId,
-        U64,
-        U64,
-        [u64; 2],
-        U128,
-        U64,
-        U64,
-        U128,
-        U128,
-        U128,
-        U128,
-        U64,
-        U64,
-        U64,
-        U128,
-    );
 }
 
 #[near_bindgen]
@@ -339,8 +265,8 @@ impl Contract {
             self.last_reward_amount.get(&farm_id).unwrap().to_string(), //Amount after withdraw the rewards
             "".to_string(),
             CONTRACT_ID_REF_TESTNET.parse().unwrap(),
-            1,                       // yocto NEAR to attach
-            Gas(45_000_000_000_000), // gas to attach (between 40 and 60)
+            1,                                    // yocto NEAR to attach
+            Gas(45_000_000_000_000),              // gas to attach (between 40 and 60)
         )
         // Get vault's deposit
         .then(ext_exchange::get_deposits(
@@ -352,9 +278,9 @@ impl Contract {
         // Swap ref tokens and atualize the reward amount
         .then(ext_self::swap_to_auto(
             farm_id,
-            env::current_account_id(),
-            0,
-            Gas(41_500_000_000_000),
+            env::current_account_id(),           // contract account id
+            0,                                   // yocto NEAR to attach
+            Gas(41_500_000_000_000),             // gas to attach
         ));
     }
 
@@ -542,7 +468,6 @@ impl Contract {
         &mut self,
         account_id: AccountId,
         receiver_id: AccountId,
-        amount: String,
         msg: String,
     ) {
         let acc = self.internal_get_account(&account_id);
@@ -553,12 +478,7 @@ impl Contract {
             None
         };
 
-        let mut bool_val = true;
-        let quantity = amount.parse::<u128>().unwrap();
-        if user_quantity < quantity {
-            bool_val = false
-        };
-        assert!(bool_val, "ERROR 1: User doesnt have balance.");
+        assert!(user_quantity != 0, "ERROR 1: User doesnt have balance.");
 
         let amount: u128 = user_quantity;
         ext_wrap::near_deposit(
@@ -576,16 +496,6 @@ impl Contract {
         ));
     }
 
-    /// Swap tokens using ref exchange.
-    pub fn call_swap(&self, actions: Vec<SwapAction>, referral_id: Option<AccountId>) -> Promise {
-        ext_exchange::swap(
-            actions,
-            referral_id,
-            CONTRACT_ID_REF_EXC.parse().unwrap(), // contract account id
-            1,                                    // yocto NEAR to attach /////////////
-            Gas(15_000_000_000_000),              // gas to attach
-        )
-    }
 
     /// Ref function to add liquidity in the pool.
     pub fn call_add_liquidity(
@@ -623,28 +533,6 @@ impl Contract {
         )
     }
 
-    /// Ref function to claim the Vault rewards.
-    pub fn call_claim(&self, seed_id: String) -> Promise {
-        ext_farm::claim_reward_by_seed(
-            seed_id,
-            CONTRACT_ID_FARM.parse().unwrap(), // contract account id
-            0,                                 // yocto NEAR to attach
-            Gas(30_000_000_000_000),           // gas to attach
-        )
-    }
-
-    /// Ref function to unstake lps/shares.
-    pub fn call_unstake(&self, seed_id: String, amount: U128, msg: String) -> Promise {
-        ext_farm::withdraw_seed(
-            seed_id,
-            amount,
-            msg,
-            CONTRACT_ID_FARM.parse().unwrap(), // contract account id
-            1,                                 // yocto NEAR to attach
-            Gas(180_000_000_000_000),          // gas to attach
-        )
-    }
-
     /// Ref function to withdraw the rewards to exchange ref contract.
     pub fn call_withdraw_reward(
         &self,
@@ -662,17 +550,6 @@ impl Contract {
         )
     }
 
-    /// Ref function to return the amount of rewards in the farm contract.
-    pub fn call_get_reward(&self, account_id: AccountId, token_id: AccountId) -> Promise {
-        ext_farm::get_reward(
-            account_id,
-            token_id,
-            CONTRACT_ID_FARM.parse().unwrap(), // contract account id
-            1,                                 // yocto NEAR to attach
-            Gas(3_000_000_000_000),            // gas to attach
-        )
-    }
-
     /// Function to return the user's deposit in the vault contract.
     pub fn get_deposits(&self, account_id: AccountId) -> HashMap<AccountId, U128> {
         let wrapped_account = self.internal_get_account(&account_id);
@@ -685,36 +562,6 @@ impl Contract {
         } else {
             HashMap::new()
         }
-    }
-
-    #[payable]
-    pub fn take_the_reward(&mut self) {
-        let seed_id = "exchange.ref-dev.testnet@193".to_string();
-        self.call_claim(seed_id.clone());
-    }
-
-    #[payable]
-    pub fn test_swap(&mut self) {
-        let pool_id_to_swap1 = 83;
-        let token_in1 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
-        let token_out1 = CONTRACT_ID_EHT_TESTNET.parse().unwrap();
-        let min_amount_out = U128(0);
-        let amount_in = Some(U128(100000000));
-
-        let actions = vec![SwapAction {
-            pool_id: pool_id_to_swap1,
-            token_in: token_in1,
-            token_out: token_out1,
-            amount_in: amount_in,
-            min_amount_out: min_amount_out,
-        }];
-        ext_exchange::swap(
-            actions,
-            None,
-            CONTRACT_ID_REF_EXC.parse().unwrap(),
-            1,
-            Gas(15_000_000_000_000),
-        );
     }
 
     /// Responsible to add liquidity and stake.
@@ -895,7 +742,7 @@ impl Contract {
     /// Swap wnear added and stake it.
     #[payable]
     pub fn add_to_vault(&mut self, account_id: AccountId, vault_contract: AccountId) -> String {
-        let acc = self.internal_get_account(&account_id);
+        let acc = self.internal_get_account(&account_id.clone());
         let mut amount_available: u128 = 0;
         if let Some(account) = acc {
             Some(amount_available = account.storage_available())
@@ -923,11 +770,11 @@ impl Contract {
                 env::current_account_id(),
                 0,
                 Gas(3_000_000_000_000),
-            ));
+        ));
 
         ///////////////Swapping Near to others///////////////
-        let pool_id_to_swap1 = 83;
-        let pool_id_to_swap2 = 84;
+        let pool_id_to_swap1 = 356;                 //Id of the eth-wnear pool that will be used for swap
+        let pool_id_to_swap2 = 231;                 //Id of the dai-wnear pool that will be used for swap
         let token_in1 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
         let token_in2 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
         let token_out1 = CONTRACT_ID_EHT_TESTNET.parse().unwrap();
@@ -963,20 +810,26 @@ impl Contract {
             CONTRACT_ID_REF_EXC.parse().unwrap(),
             1,
             Gas(15_000_000_000_000),
-        );
-
-        self.internal_register_account_sub(&account_id, amount_available);
+        )
+        .then(ext_self::add_near_balance(account_id.clone(), amount_available, env::current_account_id(), 0, Gas(2_000_000_000_000)));
 
         ///////////////Adding liquidity, staking ///////////////
         self.call_get_deposits(vault_contract.clone())
-            .then(ext_self::callback_stake_liquidity(
-                account_id.clone(),
-                vault_contract.clone(),
-                env::current_account_id(),
-                970000000000000000000,
-                Gas(200_000_000_000_000),
-            ));
+        .then(ext_self::callback_stake_liquidity(
+            account_id.clone(),
+            vault_contract.clone(),
+            env::current_account_id(),
+            970000000000000000000,
+            Gas(200_000_000_000_000),
+        ));
         "OK!".to_string()
+    }
+
+    pub fn add_near_balance( &mut self,account_id: AccountId, amount_available: u128){
+        self.internal_register_account_sub(&account_id.clone(), amount_available);
+    }
+    pub fn sub_near_balance( &mut self,account_id: AccountId, amount_available: u128){
+        self.internal_register_account(&account_id.clone(), amount_available);
     }
 
     /// Withdraw user lps and send it to the Vault contract.
@@ -1056,7 +909,7 @@ impl Contract {
             account_id,
             env::current_account_id(),
             1,
-            Gas(13_000_000_000_000),
+            Gas(20_000_000_000_000),
         ));
     }
 
@@ -1080,8 +933,9 @@ impl Contract {
             CONTRACT_ID_WRAP_TESTNET.parse().unwrap(),
             1,
             Gas(3_000_000_000_000),
-        );
-        self.internal_register_account_string(&account_id, amount.clone());
+        )
+        .then(ext_self::sub_near_balance(account_id.clone(), amount.parse::<u128>().unwrap(), env::current_account_id(), 0, Gas(5_000_000_000_000)));
+
     }
 
     /// Take out wnear from ref-exchange and send it to Vault contract.
@@ -1159,8 +1013,8 @@ impl Contract {
         }
 
         ///////////////Swapping Near to others///////////////
-        let pool_id_to_swap1 = 83;
-        let pool_id_to_swap2 = 84;
+        let pool_id_to_swap1 = 356;                 //Id of the eth-wnear pool that will be used for swap
+        let pool_id_to_swap2 = 231;                 //Id of the dai-wnear pool that will be used for swap
         let token_out1 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
         let token_out2 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
         let token_in1 = CONTRACT_ID_EHT_TESTNET.parse().unwrap();
