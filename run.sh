@@ -11,21 +11,22 @@ username=''
 echo $username
  
 #### Initialize contract
-near call $CONTRACT_NAME new '{"owner_id":"'$username'", "vault_shares": 0}' --accountId $username
+#near call $CONTRACT_NAME new '{"owner_id":"'$username'", "vault_shares": 0}' --accountId $username
 
 #### Register contract 
 
 #At ref
-near call $CONTRACT_NAME call_user_register '{"account_id": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME
+#near call $CONTRACT_NAME call_user_register '{"account_id": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME
 
 #At the farm
-near call farm.leopollum.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", "registration_only": false}' --accountId $CONTRACT_NAME --deposit 0.1
+#near call farm.leopollum.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", "registration_only": false}' --accountId $CONTRACT_NAME --deposit 0.1
 
 #At near wrap
-near call wrap.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", "registration_only": false}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.00125
+#near call wrap.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", "registration_only": false}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.00125
 
 #At ref.fakes
-near call ref.fakes.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", "registration_only": false}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.00125
+#near call ref.fakes.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", "registration_only": false}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.00125
+
 
 #### Register user and add value to contract
 # near call $CONTRACT_NAME storage_deposit '{"account_id": "'$username'", "registration_only": false}' --accountId $username --gas 300000000000000 --deposit 5
@@ -38,7 +39,9 @@ near call ref.fakes.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", 
 
 
 #### Withdraw the farm reward.
-# near call $CONTRACT_NAME withdraw_of_reward '{"vault_contract": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.000000000000000000000001
+near call $CONTRACT_NAME claim_reward '{}' --accountId $CONTRACT_NAME --gas 230000000000000 --deposit 0.000000000000000000000001
+near call $CONTRACT_NAME withdraw_of_reward '{"vault_contract": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME --gas 300000000000000 --deposit 0.000000000000000000000001
+
 
 #### Unstake, swap to wnear and send it to vault contract.
 # near call $CONTRACT_NAME withdraw_all '{"seed_id": "exchange.ref-dev.testnet@193", "msg": "", "vault_contract": "'$CONTRACT_NAME'", "account_id": "'$username'"}' --accountId $username --gas 300000000000000 
@@ -46,12 +49,15 @@ near call ref.fakes.testnet storage_deposit '{"account_id": "'$CONTRACT_NAME'", 
 
 
 #### Start croncat tasks responsible for auto-compound 
-#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "withdraw_of_reward","cadence": " * */50 * * * *","recurring": true,"deposit": "1","gas": 230000000000000}' --accountId $CONTRACT_NAME --amount 5 --gas 300000000000000 
-#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "auto_function_1","cadence": " * */50 * * * *","recurring": true,"deposit": "0","gas": 200000000000000}' --accountId $CONTRACT_NAME --amount 5 --gas 300000000000000
-#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "auto_function_2","cadence": " * */50 * * * *","recurring": true,"deposit": "0","gas": 230000000000000}' --accountId $CONTRACT_NAME --amount 5 --gas 300000000000000
+#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "withdraw_of_reward","cadence": " * * */24 * * *","recurring": true,"deposit": "1","gas": 230000000000000}' --accountId $CONTRACT_NAME --amount 20 --gas 300000000000000 
+#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "claim_reward","cadence": " * * */24 * * *","recurring": true,"deposit": "1","gas": 150000000000000}' --accountId $CONTRACT_NAME --amount 20 --gas 300000000000000 
+#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "auto_function_1","cadence": " * * */24 * * *","recurring": true,"deposit": "0","gas": 200000000000000}' --accountId $CONTRACT_NAME --amount 20 --gas 300000000000000
+#near call manager_v1.croncat.testnet create_task '{"contract_id": "'$CONTRACT_NAME'", "function_id": "auto_function_2","cadence": " * * */24 * * *","recurring": true,"deposit": "0","gas": 230000000000000}' --accountId $CONTRACT_NAME --amount 20 --gas 300000000000000
 
 #### Functions managed by auto-compound
 #near call $CONTRACT_NAME withdraw_of_reward '{}' --accountId $CONTRACT_NAME --gas 230000000000000 --deposit 0.000000000000000000000001
+#near call $CONTRACT_NAME claim_reward '{}' --accountId $CONTRACT_NAME --gas 230000000000000 --deposit 0.000000000000000000000001
+
 #near call $CONTRACT_NAME auto_function_1 '{}' --accountId $CONTRACT_NAME --gas 200000000000000 
 #near call $CONTRACT_NAME auto_function_2 '{}' --accountId $CONTRACT_NAME --gas 230000000000000 
 
