@@ -463,17 +463,15 @@ impl Contract {
         receiver_id: AccountId,
         msg: String,
     ) {
-        let mut have_balance = true;
         let acc = self.internal_get_account(&account_id);
         let mut user_quantity: u128 = 0;
         if let Some(account) = acc {
             Some(user_quantity = account.storage_available())
         } else {
-            have_balance=false;
             None
         };
 
-        assert!(have_balance, "ERROR 1: User doesnt have balance.");
+        assert!(user_quantity != 0, "ERROR 1: User doesnt have balance.");
 
         let amount: u128 = user_quantity;
         ext_wrap::near_deposit(
@@ -763,8 +761,8 @@ impl Contract {
         ));
 
         ///////////////Swapping Near to others///////////////
-        let pool_id_to_swap1 = 356;
-        let pool_id_to_swap2 = 231;
+        let pool_id_to_swap1 = 356;                 //Id of the eth-wnear pool that will be used for swap
+        let pool_id_to_swap2 = 231;                 //Id of the dai-wnear pool that will be used for swap
         let token_in1 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
         let token_in2 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
         let token_out1 = CONTRACT_ID_EHT_TESTNET.parse().unwrap();
@@ -800,9 +798,7 @@ impl Contract {
             CONTRACT_ID_REF_EXC.parse().unwrap(),
             1,
             Gas(15_000_000_000_000),
-        )//;
-
-        //.then(ext_self::internal_register_account_sub(account_id.clone(), amount_available,env::current_account_id(), 0, Gas(2_000_000_000_000)));
+        )
         .then(ext_self::add_near_balance(account_id.clone(), amount_available, env::current_account_id(), 0, Gas(2_000_000_000_000)));
 
         ///////////////Adding liquidity, staking ///////////////
@@ -1005,8 +1001,8 @@ impl Contract {
         }
 
         ///////////////Swapping Near to others///////////////
-        let pool_id_to_swap1 = 356;
-        let pool_id_to_swap2 = 231;
+        let pool_id_to_swap1 = 356;                 //Id of the eth-wnear pool that will be used for swap
+        let pool_id_to_swap2 = 231;                 //Id of the dai-wnear pool that will be used for swap
         let token_out1 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
         let token_out2 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
         let token_in1 = CONTRACT_ID_EHT_TESTNET.parse().unwrap();
