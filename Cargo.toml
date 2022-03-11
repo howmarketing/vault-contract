@@ -4,7 +4,6 @@ version = "0.1.1"
 authors = ["Pollum"]
 edition = "2021"
 
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -14,3 +13,6 @@ near-contract-standards = { git = "https://github.com/near/near-sdk-rs", tag = "
 futures = "0.3"
 log = "0.4"
 console_log = { version = "0.2", optional = true }
+
+[dev-dependencies]
+near-sdk-sim = { git = "https://github.com/near/near-sdk-rs", tag = "4.0.0-pre.3" }

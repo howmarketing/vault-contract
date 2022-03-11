@@ -7,7 +7,7 @@ near dev-deploy --wasmFile ./res/vault_contract.wasm
 source neardev/dev-account.env
 echo $CONTRACT_NAME
 
-username=''
+username='mesto.testnet'
 echo $username
  
 #### Initialize contract
@@ -29,7 +29,7 @@ echo $username
 
 
 #### Register user and add value to contract
-# near call $CONTRACT_NAME storage_deposit '{"account_id": "'$username'", "registration_only": false}' --accountId $username --gas 300000000000000 --deposit 5
+near call $CONTRACT_NAME storage_deposit '{"account_id": "'$username'", "registration_only": false}' --accountId $username --gas 300000000000000 --deposit 5
 
 #### Swaping near to wnear and sending to ref.
 # near call $CONTRACT_NAME near_to_wrap '{"account_id": "'$username'", "receiver_id": "exchange.ref-dev.testnet", "amount": "10000000000000000000000", "msg": ""}' --accountId $username --gas 300000000000000 
