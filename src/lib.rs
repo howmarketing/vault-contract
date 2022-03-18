@@ -189,6 +189,7 @@ impl Contract {
     /// Extend the whitelist of tokens.
     #[payable]
     pub fn extend_whitelisted_tokens(&mut self, tokens: Vec<AccountId>) {
+        assert_eq!(env::predecessor_account_id(), self.owner_id,"ERR_NOT_ALLOWED");
         for token in tokens {
             self.whitelisted_tokens.insert(&token);
         }
@@ -201,6 +202,7 @@ impl Contract {
 
     /// Function that return the user`s near storage.
     pub fn get_user_storage_state(&self, account_id: AccountId) -> Option<RefStorageState> {
+        assert_eq!(env::predecessor_account_id(), account_id, "ERR_NOT_ALLOWED");
         let acc = self.internal_get_account(&account_id);
         if let Some(account) = acc {
             Some(RefStorageState {
@@ -260,6 +262,8 @@ impl Contract {
             a) Add callback to handle failed txs
             b) Send all tokens to exchange, instead of 0.01 each iteration
         */
+        self.check_autocompounds_caller(env::predecessor_account_id());
+
         ext_reffakes::ft_transfer_call(
             CONTRACT_ID_REF_EXC.parse().unwrap(), // receiver_id,
             self.last_reward_amount.get(&farm_id).unwrap().to_string(), //Amount after withdraw the rewards
@@ -287,6 +291,9 @@ impl Contract {
     /// Get amount of tokens available then stake it
     #[payable]
     pub fn auto_function_2(&mut self) {
+
+        self.check_autocompounds_caller(env::predecessor_account_id());
+
         ext_exchange::get_deposits(
             env::current_account_id().try_into().unwrap(),
             CONTRACT_ID_REF_EXC.parse().unwrap(), // contract account id
@@ -308,6 +315,8 @@ impl Contract {
     pub fn withdraw_of_reward(&mut self) {
         let token_id = CONTRACT_ID_REF_TESTNET.parse().unwrap();
 
+        self.check_autocompounds_caller(env::predecessor_account_id());
+
         ext_farm::get_reward(
             env::current_account_id().try_into().unwrap(),
             CONTRACT_ID_REF_TESTNET.parse().unwrap(),
@@ -327,7 +336,10 @@ impl Contract {
     /// Function to claim the reward from the farm contract
     #[payable]
     pub fn claim_reward(&mut self) {
+
         let seed_id = "exchange.ref-dev.testnet@193".to_string();
+
+        self.check_autocompounds_caller(env::predecessor_account_id());
 
         ext_farm::claim_reward_by_seed(
             seed_id,
@@ -337,13 +349,21 @@ impl Contract {
         );
     }
 
-        
+    fn check_autocompounds_caller(&mut self, account: AccountId){
+        if ((account != self.owner_id) 
+        && (account.to_string() !=  "goldmine.testnet")
+        && (account.to_string() != "hobbyhodlrtest.testnet")
+        && (account != env::current_account_id())){
+            assert!(false, "ERR_NOT_ALLOWED");
+        }
+    }
     /// Auto-compound function.
     ///
     /// Responsible to add liquidity and stake.
     #[private]
     #[payable]
     pub fn stake_and_liquidity_auto(&mut self, account_id: AccountId, vault_contract: AccountId) {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let is_tokens = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -405,6 +425,7 @@ impl Contract {
     /// Read shares for each account registered.
     #[private]
     pub fn callback_to_balance(&mut self) -> String {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let shares = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -445,6 +466,7 @@ impl Contract {
     #[payable]
     #[private]
     pub fn balance_actualization(&mut self, vec: HashMap<AccountId, u128>, shares: String) {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
         let new_shares_quantity = shares.parse::<u128>().unwrap();
         log!("new_shares_quantity is equal to {}", new_shares_quantity,);
 
@@ -470,6 +492,8 @@ impl Contract {
         receiver_id: AccountId,
         msg: String,
     ) {
+        assert_eq!(env::predecessor_account_id(), account_id, "ERR_NOT_ALLOWED");
+
         let acc = self.internal_get_account(&account_id);
         let mut user_quantity: u128 = 0;
         if let Some(account) = acc {
@@ -572,6 +596,7 @@ impl Contract {
         account_id: AccountId,
         vault_contract: AccountId,
     ) -> Vec<U128> {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let is_tokens = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -633,6 +658,7 @@ impl Contract {
     /// Receives shares from auto-compound and stake it
     #[private]
     pub fn callback_stake(&mut self, account_id: AccountId) {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let shares = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -657,6 +683,7 @@ impl Contract {
     /// Change the user_balance and the vault balance of lps/shares
     #[private]
     pub fn callback_update_user_balance(&mut self, account_id: AccountId) -> String {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let vault_shares_on_pool = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -697,6 +724,7 @@ impl Contract {
     #[payable]
     #[private]
     pub fn callback_withdraw_rewards(&mut self, token_id: String) -> U128 {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let amount = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -742,6 +770,7 @@ impl Contract {
     /// Swap wnear added and stake it.
     #[payable]
     pub fn add_to_vault(&mut self, account_id: AccountId, vault_contract: AccountId) -> String {
+        assert_eq!(env::predecessor_account_id(), account_id,"ERR_NOT_ALLOWED");
         let acc = self.internal_get_account(&account_id.clone());
         let mut amount_available: u128 = 0;
         if let Some(account) = acc {
@@ -826,9 +855,18 @@ impl Contract {
     }
 
     pub fn add_near_balance( &mut self,account_id: AccountId, amount_available: u128){
+        if ((account_id != self.owner_id) 
+        && (account_id != env::current_account_id())){
+            assert!(false, "ERR_NOT_ALLOWED");
+        };
         self.internal_register_account_sub(&account_id.clone(), amount_available);
     }
+
     pub fn sub_near_balance( &mut self,account_id: AccountId, amount_available: u128){
+        if ((account_id != self.owner_id) 
+        && (account_id != env::current_account_id())){
+            assert!(false, "ERR_NOT_ALLOWED");
+        };
         self.internal_register_account(&account_id.clone(), amount_available);
     }
 
@@ -840,6 +878,8 @@ impl Contract {
         vault_contract: AccountId,
         account_id: AccountId,
     ) {
+        assert_eq!(env::predecessor_account_id(), account_id,"ERR_NOT_ALLOWED");
+
         let user_lps = self.user_shares.get(&account_id);
         let mut user_quantity_available_to_withdraw: u128 = 0;
         if let Some(temp) = user_lps {
@@ -892,6 +932,8 @@ impl Contract {
     /// Call `withdraw_all` before calling this.
     #[payable]
     pub fn withdraw_all_2(&mut self, vault_contract: AccountId, account_id: AccountId) {
+        assert_eq!(env::predecessor_account_id(), account_id,"ERR_NOT_ALLOWED");
+
         ext_exchange::get_deposits(
             vault_contract.clone(),
             CONTRACT_ID_REF_EXC.parse().unwrap(), // contract account id
@@ -916,6 +958,7 @@ impl Contract {
     #[private]
     #[payable]
     pub fn callback_to_near_withdraw(&mut self, account_id: AccountId) {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let amount = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -942,6 +985,8 @@ impl Contract {
     #[private]
     #[payable]
     pub fn callback_to_withdraw(&mut self) -> U128 {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
+
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let amount = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -982,6 +1027,8 @@ impl Contract {
     #[private]
     #[payable]
     pub fn swap_to_withdraw_all(&mut self) {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
+
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let is_tokens = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -1058,6 +1105,8 @@ impl Contract {
     #[private]
     #[payable]
     pub fn swap_to_auto(&mut self, farm_id: String) {
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(),"ERR_NOT_ALLOWED");
+
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let is_tokens = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
