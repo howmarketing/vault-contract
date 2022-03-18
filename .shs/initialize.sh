@@ -1,7 +1,7 @@
 source neardev/dev-account.env
 echo $CONTRACT_NAME
 
-username='leopollum.testnet'
+username=''
 echo $username
 
 #### Initialize contract
