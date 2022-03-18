@@ -91,6 +91,7 @@ const CONTRACT_ID_FARM: &str = "farm.leopollum.testnet";
 const CONTRACT_ID_WRAP_TESTNET: &str = "wrap.testnet";
 const CONTRACT_ID_EHT_TESTNET: &str = "eth.fakes.testnet";
 const CONTRACT_ID_DAI_TESTNET: &str = "dai.fakes.testnet";
+const TEN_TO_THE_POWER_OF_12: u128 = 1000000000000;
 
 // Ref exchange functions that we need to call inside the vault.
 #[ext_contract(ext_exchange)]
@@ -280,9 +281,7 @@ impl Contract {
             a) Add callback to handle failed txs
             b) Send all tokens to exchange, instead of 0.01 each iteration
         */
-
         if self.last_reward_amount.get(&farm_id.clone().to_string()) == None {
-            log!("zerando last_reward_amount");
             self.last_reward_amount
                 .insert(farm_id.clone().to_string(), 0);
         };
@@ -473,8 +472,7 @@ impl Contract {
     #[payable]
     #[private]
     pub fn balance_update(&mut self, vec: HashMap<AccountId, u128>, shares: String) {
-        //let new_shares_quantity = shares.parse::<u128>().unwrap();
-        let new_shares_quantity: u128 = 158880324046930996;
+        let new_shares_quantity = shares.parse::<u128>().unwrap();
         log!("new_shares_quantity is equal to {}", new_shares_quantity,);
 
         let mut total: u128 = 0;
@@ -484,16 +482,7 @@ impl Contract {
         for (account, val) in vec {
             let extra_shares_for_user: u128 =
                 // Distribute rewards for users with 10^-10% of the vault or more 
-                (((new_shares_quantity * 1000000000000) as f64 * (val as f64 / total as f64) )).floor() as u128 / 1000000000000 ;
-
-            log!("Account = {}", account);
-            log!("porcentagem = {}", (val as f64 / total as f64));
-            log!("extra_shares_for_user = {}", extra_shares_for_user);
-            log!(
-                "conta = {}",
-                ((new_shares_quantity * 1000000000000) as f64 * (val as f64 / total as f64))
-            );
-            log!("conta 2 = {}", (new_shares_quantity * 1000000000000) as f64);
+                (((new_shares_quantity * TEN_TO_THE_POWER_OF_12) as f64 * (val as f64 / total as f64))).floor() as u128 / TEN_TO_THE_POWER_OF_12;
             let new_user_balance = val + extra_shares_for_user;
             self.user_shares.insert(account, new_user_balance);
         }
@@ -759,7 +748,6 @@ impl Contract {
         {
             self.last_reward_amount
                 .insert("exchange.ref-dev.testnet@193#6".to_string(), 0);
-            log!("Zerando last_reward-amount");
         }
 
         let residue: u128 = *self
@@ -769,13 +757,6 @@ impl Contract {
         self.last_reward_amount.insert(
             "exchange.ref-dev.testnet@193#6".to_string(),
             amount_in_u128 + residue,
-        );
-        log!(
-            "print: tem {} e era pra ter {}",
-            self.last_reward_amount
-                .get(&"exchange.ref-dev.testnet@193#6".to_string())
-                .unwrap(),
-            (amount_in_u128 + residue)
         );
 
         amount
