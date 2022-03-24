@@ -855,18 +855,12 @@ impl Contract {
     }
 
     pub fn add_near_balance( &mut self,account_id: AccountId, amount_available: u128){
-        if ((account_id != self.owner_id) 
-        && (account_id != env::current_account_id())){
-            assert!(false, "ERR_NOT_ALLOWED");
-        };
+        assert!( account_id == self.owner_id || account_id == env::current_account_id(), "ERR_NOT_ALLOWED" );
         self.internal_register_account_sub(&account_id.clone(), amount_available);
     }
 
     pub fn sub_near_balance( &mut self,account_id: AccountId, amount_available: u128){
-        if ((account_id != self.owner_id) 
-        && (account_id != env::current_account_id())){
-            assert!(false, "ERR_NOT_ALLOWED");
-        };
+        assert!( account_id == self.owner_id || account_id == env::current_account_id(), "ERR_NOT_ALLOWED" );
         self.internal_register_account(&account_id.clone(), amount_available);
     }
 
