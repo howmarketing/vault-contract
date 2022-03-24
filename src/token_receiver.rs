@@ -38,7 +38,7 @@ impl FungibleTokenReceiver for Contract {
         &mut self,
         sender_id: AccountId,
         amount: U128,
-        msg: String,
+        _msg: String,
     ) -> PromiseOrValue<U128> {
         self.assert_contract_running();
         ext_self::metadata(
@@ -47,36 +47,7 @@ impl FungibleTokenReceiver for Contract {
             Gas(5_000_000_000_000), // gas to attach
         );
         let token_in = env::predecessor_account_id();
-        // TODO: remove if not used
-        //if msg.is_empty() {
-        // Simple deposit.
         self.internal_deposit(&sender_id, &token_in, amount.into());
         PromiseOrValue::Value(U128(0))
-        // TODO: remove if not used
-        // }
-        /*else {
-            // instant swap
-            let message =
-                serde_json::from_str::<TokenReceiverMessage>(&msg).expect(ERR28_WRONG_MSG_FORMAT);
-            match message {
-                TokenReceiverMessage::Execute {
-                    referral_id,
-                    actions,
-                } => {
-                    let referral_id = referral_id.map(|x| x.to_string());
-                    let out_amounts = self.internal_direct_actions(
-                        token_in,
-                        amount.0,
-                        referral_id,
-                        &actions,
-                    );
-                    for (token_out, amount_out) in out_amounts.into_iter() {
-                        self.internal_send_tokens(sender_id.as_ref(), &token_out, amount_out);
-                    }
-                    // Even if send tokens fails, we don't return funds back to sender.
-                    PromiseOrValue::Value(U128(0))
-                }
-            }
-        }*/
     }
 }

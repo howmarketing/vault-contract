@@ -8,10 +8,10 @@ use near_contract_standards::storage_management::{
 };
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedSet};
-use near_sdk::json_types::{Base64VecU8, U128, U64};
+use near_sdk::json_types::{U128};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
-    assert_one_yocto, env, ext_contract, log, near_bindgen, AccountId, BorshStorageKey, Gas, Balance,
+    assert_one_yocto, env, ext_contract, log, near_bindgen, AccountId, BorshStorageKey, Gas,
     PanicOnDefault, Promise, PromiseResult,
 };
 
@@ -41,8 +41,6 @@ pub struct SwapAction {
 #[derive(BorshStorageKey, BorshSerialize)]
 pub(crate) enum StorageKey {
     Accounts,
-    UserShares,
-    VaultShares,
     Whitelist,
     AccountTokens { account_id: AccountId },
 }
@@ -82,6 +80,7 @@ pub struct Contract {
     whitelisted_tokens: UnorderedSet<AccountId>,
     state: RunningState,
     last_reward_amount: HashMap<String, u128>,
+    users_total_near_deposited: HashMap<AccountId, u128>,
 }
 
 // Contracts addresses.
@@ -137,10 +136,10 @@ pub trait VaultContract {
     fn swap_to_withdraw_all(&mut self);
     fn callback_to_withdraw(&mut self);
     fn callback_to_near_withdraw(&mut self, account_id: AccountId);
-    fn callback_stake(&mut self, account_id: AccountId);
+    fn callback_stake(&mut self );
     fn swap_to_auto(&mut self, farm_id: String);
     fn callback_to_balance(&mut self);
-    fn stake_and_liquidity_auto(&mut self, account_id: AccountId, vault_contract: AccountId);
+    fn stake_and_liquidity_auto(&mut self, account_id: AccountId );
     fn balance_actualization(&mut self, vec: HashMap<AccountId, u128>, shares: String);
     fn add_near_balance(&mut self, account_id: AccountId, amount_available: u128);
     fn sub_near_balance(&mut self, account_id: AccountId, amount_available: u128);
@@ -169,10 +168,11 @@ impl Contract {
             owner_id: owner_id,
             user_shares: HashMap::new(),
             last_reward_amount: HashMap::new(),
-            vault_shares,
+            vault_shares: vault_shares,
             accounts: LookupMap::new(StorageKey::Accounts),
             whitelisted_tokens: UnorderedSet::new(StorageKey::Whitelist),
             state: RunningState::Running,
+            users_total_near_deposited:  HashMap::new(),
         }
     }
 
@@ -184,6 +184,18 @@ impl Contract {
         } else {
             None
         }
+    }
+
+    /// Returns the total amount of near that was deposited
+    pub fn user_total_near_deposited(&self, account_id: AccountId) -> Option<String> {
+
+        let users_total_near_deposited = self.users_total_near_deposited.get(&account_id);
+        if let Some(quantity) = users_total_near_deposited {
+            Some(quantity.to_string())
+        } else {
+            None
+        }
+
     }
 
     /// Extend the whitelist of tokens.
@@ -296,7 +308,6 @@ impl Contract {
         // Add liquidity and stake once again
         .then(ext_self::stake_and_liquidity_auto(
             env::current_account_id().try_into().unwrap(),
-            env::current_account_id().try_into().unwrap(),
             env::current_account_id(), // vault contract id
             970000000000000000000,     // yocto NEAR to attach
             Gas(200_000_000_000_000),  // gas to attach
@@ -343,7 +354,7 @@ impl Contract {
     /// Responsible to add liquidity and stake.
     #[private]
     #[payable]
-    pub fn stake_and_liquidity_auto(&mut self, account_id: AccountId, vault_contract: AccountId) {
+    pub fn stake_and_liquidity_auto(&mut self, account_id: AccountId ) {
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let is_tokens = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -395,7 +406,6 @@ impl Contract {
             Gas(15_000_000_000_000),
         ))
         .then(ext_self::callback_stake(
-            account_id.clone(),
             env::current_account_id(),
             0,
             Gas(90_000_000_000_000),
@@ -621,7 +631,6 @@ impl Contract {
             Gas(5_000_000_000_000),
         ))
         .then(ext_self::callback_stake(
-            account_id.clone(),
             env::current_account_id(),
             0,
             Gas(90_000_000_000_000),
@@ -632,7 +641,7 @@ impl Contract {
 
     /// Receives shares from auto-compound and stake it
     #[private]
-    pub fn callback_stake(&mut self, account_id: AccountId) {
+    pub fn callback_stake(&mut self ) {
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         let shares = match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
@@ -811,7 +820,7 @@ impl Contract {
             1,
             Gas(15_000_000_000_000),
         )
-        .then(ext_self::add_near_balance(account_id.clone(), amount_available, env::current_account_id(), 0, Gas(2_000_000_000_000)));
+        .then(ext_self::sub_near_balance(account_id.clone(), amount_available, env::current_account_id(), 0, Gas(2_000_000_000_000)));
 
         ///////////////Adding liquidity, staking ///////////////
         self.call_get_deposits(vault_contract.clone())
@@ -826,10 +835,10 @@ impl Contract {
     }
 
     pub fn add_near_balance( &mut self,account_id: AccountId, amount_available: u128){
-        self.internal_register_account_sub(&account_id.clone(), amount_available);
+        self.internal_register_account(&account_id.clone(), amount_available);
     }
     pub fn sub_near_balance( &mut self,account_id: AccountId, amount_available: u128){
-        self.internal_register_account(&account_id.clone(), amount_available);
+        self.internal_register_account_sub(&account_id.clone(), amount_available);
     }
 
     /// Withdraw user lps and send it to the Vault contract.
@@ -934,7 +943,7 @@ impl Contract {
             1,
             Gas(3_000_000_000_000),
         )
-        .then(ext_self::sub_near_balance(account_id.clone(), amount.parse::<u128>().unwrap(), env::current_account_id(), 0, Gas(5_000_000_000_000)));
+        .then(ext_self::add_near_balance(account_id.clone(), amount.parse::<u128>().unwrap(), env::current_account_id(), 0, Gas(5_000_000_000_000)));
 
     }
 

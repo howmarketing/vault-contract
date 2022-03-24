@@ -48,7 +48,7 @@ pub enum VAccount {
 
 impl VAccount {
     /// Upgrades from other versions to the currently used version.
-    pub fn into_current(self, account_id: &AccountId) -> Account {
+    pub fn into_current(self ) -> Account {
         match self {
             VAccount::Current(account) => account,
             //VAccount::V1(account) => account.into_current(account_id),
@@ -351,24 +351,13 @@ impl Contract {
         self.internal_save_account(&account_id, account);
     }
 
-    //this function is the same of internal_register_account but receives amount with string type.
-    pub(crate) fn internal_register_account_string(
-        &mut self,
-        account_id: &AccountId,
-        amount: String,
-    ) {
-        let mut account = self.internal_unwrap_or_default_account(&account_id);
-        let quantity = amount.parse::<u128>().unwrap();
-        account.near_amount += quantity;
-        self.internal_save_account(&account_id, account);
-    }
-
     pub(crate) fn internal_register_account_sub(
         &mut self,
         account_id: &AccountId,
         amount: Balance,
     ) {
         let mut account = self.internal_unwrap_or_default_account(&account_id);
+        log!("account.near_amount é = {} e amount = {}", account.near_amount,amount );
         account.near_amount -= amount;
         log!(
             "the new balance after subtracting = {}",
@@ -420,7 +409,7 @@ impl Contract {
     pub fn internal_get_account(&self, account_id: &AccountId) -> Option<Account> {
         self.accounts
             .get(account_id)
-            .map(|va| va.into_current(account_id))
+            .map(|va| va.into_current( ))
     }
 
     pub fn internal_unwrap_account(&self, account_id: &AccountId) -> Account {

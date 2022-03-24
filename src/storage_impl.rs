@@ -19,8 +19,7 @@ impl StorageManagement for Contract {
         if amount < min_balance && !already_registered {
             env::panic_str("ERR_DEPOSIT_LESS_THAN_MIN_STORAGE");
         }
-        /**/
-        /**/
+         
         if registration_only {
             // Registration only setups the account but doesn't leave space for tokens.
             if already_registered {
@@ -38,6 +37,20 @@ impl StorageManagement for Contract {
         } else {
             self.internal_register_account(&account_id, amount);
         }
+        
+        let available = u128::from(self.storage_balance_of(account_id.clone().try_into().unwrap()).unwrap().available);
+        if already_registered
+        {
+            let amount_aready_deposited = self.users_total_near_deposited.get_mut(&account_id.clone()).unwrap().clone();
+            self.users_total_near_deposited.insert(account_id.clone(), available + amount_aready_deposited);
+            log!("amount + antes: {}", available + amount_aready_deposited);
+        }
+        else
+        {
+            self.users_total_near_deposited.insert(account_id.clone(), available);
+            log!("amount + 0 : {}",available);
+        }
+        
         self.storage_balance_of(account_id.try_into().unwrap())
             .unwrap()
     }
@@ -48,6 +61,19 @@ impl StorageManagement for Contract {
         self.assert_contract_running();
         let account_id = env::predecessor_account_id();
         let amount = amount.unwrap_or(U128(0)).0;
+
+        let amount_aready_deposited = self.users_total_near_deposited.get_mut(&account_id.clone()).unwrap().clone();
+        let available = u128::from(self.storage_balance_of(account_id.clone().try_into().unwrap()).unwrap().available);
+        let gains: f64 = (available as f64 / amount_aready_deposited as f64) - 1_f64; 
+        log!("available = {} -> Deposit before = {}, gains = {} = {}%",
+            available,
+            amount_aready_deposited,
+            available as i128 - amount_aready_deposited as i128,
+            gains
+        );
+
+        self.users_total_near_deposited.insert(account_id.clone(), amount_aready_deposited - amount );
+        
         let withdraw_amount = self.internal_storage_withdraw(&account_id, amount);
         Promise::new(account_id.clone()).transfer(withdraw_amount);
         self.storage_balance_of(account_id.try_into().unwrap())
