@@ -549,7 +549,7 @@ impl Contract {
             msg,
             CONTRACT_ID_REF_EXC.parse().unwrap(), // contract account id
             1,                                    // yocto NEAR to attach
-            Gas(80_000_000_000_000),              // gas to attach 75
+            Gas(80_000_000_000_000),              // gas to attach
         )
     }
 
