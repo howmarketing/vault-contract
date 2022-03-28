@@ -7,7 +7,7 @@ near dev-deploy --wasmFile ../res/vault_contract.wasm
 source neardev/dev-account.env
 echo $CONTRACT_NAME
 
-username=''
+username='leopollum.testnet'
 echo $username
  
 

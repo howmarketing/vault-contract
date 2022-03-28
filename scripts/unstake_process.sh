@@ -1,7 +1,7 @@
 source neardev/dev-account.env
 echo $CONTRACT_NAME
 
-username=''
+username='leopollum.testnet'
 echo $username
 #### Unstake, swap to wnear and send it to vault contract.
 near call $CONTRACT_NAME withdraw_all '{"seed_id": "exchange.ref-dev.testnet@193", "msg": "", "vault_contract": "'$CONTRACT_NAME'", "account_id": "'$username'"}' --accountId $username --gas 300000000000000 

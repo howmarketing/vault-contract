@@ -82,15 +82,25 @@ pub struct Contract {
     whitelisted_tokens: UnorderedSet<AccountId>,
     state: RunningState,
     last_reward_amount: HashMap<String, u128>,
+    pool_token1: String, 
+    pool_token2: String, 
+    pool_id_token1_wrap: u64, 
+    pool_id_token2_wrap: u64, 
+    pool_id_token1_reward: u64, 
+    pool_id_token2_reward: u64,
+    farm_id: String, 
+    reward_token: String,
+    pool_id: u64,
+    seed_id: String
 }
 
 // Contracts addresses.
-const CONTRACT_ID_REF_TESTNET: &str = "ref.fakes.testnet";
+//const CONTRACT_ID_REF_TESTNET: &str = "ref.fakes.testnet";
 const CONTRACT_ID_REF_EXC: &str = "exchange.ref-dev.testnet";
 const CONTRACT_ID_FARM: &str = "farm.leopollum.testnet";
 const CONTRACT_ID_WRAP_TESTNET: &str = "wrap.testnet";
-const CONTRACT_ID_EHT_TESTNET: &str = "eth.fakes.testnet";
-const CONTRACT_ID_DAI_TESTNET: &str = "dai.fakes.testnet";
+//const CONTRACT_ID_EHT_TESTNET: &str = "eth.fakes.testnet";
+//const CONTRACT_ID_DAI_TESTNET: &str = "dai.fakes.testnet";
 const TEN_TO_THE_POWER_OF_12: u128 = 1000000000000;
 
 // Ref exchange functions that we need to call inside the vault.
@@ -185,7 +195,12 @@ impl Contract {
     /// - `whitelisted_tokens` - the tokens allowed to be used in the Vault
     /// - `state` - keep tracks of the contract state
     #[init]
-    pub fn new(owner_id: AccountId, vault_shares: u128) -> Self {
+    pub fn new(owner_id: AccountId, vault_shares: u128, 
+        pool_token1: String, pool_token2: String, 
+        pool_id_token1_wrap: u64, pool_id_token2_wrap: u64, 
+        pool_id_token1_reward: u64, pool_id_token2_reward: u64,
+        farm_id: String, reward_token: String, seed_id: String, pool_id: u64
+    ) -> Self {
         Self {
             owner_id: owner_id,
             user_shares: HashMap::new(),
@@ -194,7 +209,18 @@ impl Contract {
             accounts: LookupMap::new(StorageKey::Accounts),
             whitelisted_tokens: UnorderedSet::new(StorageKey::Whitelist),
             state: RunningState::Running,
-        }
+            pool_token1: pool_token1, 
+            pool_token2: pool_token2, 
+            pool_id_token1_wrap: pool_id_token1_wrap, 
+            pool_id_token2_wrap: pool_id_token2_wrap, 
+            pool_id_token1_reward: pool_id_token1_reward, 
+            pool_id_token2_reward: pool_id_token2_reward,
+            farm_id: farm_id, 
+            reward_token: reward_token,
+            pool_id: pool_id,
+            seed_id: seed_id,
+        }  
+        
     }
 
     /// Returns the number of shares some accountId has in the Vault
@@ -293,7 +319,7 @@ impl Contract {
                 .unwrap()
                 .to_string(), //Amount after withdraw the rewards
             "".to_string(),
-            CONTRACT_ID_REF_TESTNET.parse().unwrap(),
+            self.reward_token.parse().unwrap(),
             1,                       // yocto NEAR to attach
             Gas(45_000_000_000_000), // gas to attach (between 40 and 60)
         )
@@ -334,11 +360,11 @@ impl Contract {
     /// Function to claim the reward from the farm contract
     #[payable]
     pub fn withdraw_of_reward(&mut self) {
-        let token_id = CONTRACT_ID_REF_TESTNET.parse().unwrap();
+        let token_id = self.reward_token.parse().unwrap();
 
         ext_farm::get_reward(
             env::current_account_id().try_into().unwrap(),
-            CONTRACT_ID_REF_TESTNET.parse().unwrap(),
+            self.reward_token.parse().unwrap(),
             CONTRACT_ID_FARM.parse().unwrap(), // contract account id
             1,                                 // yocto NEAR to attach
             Gas(3_000_000_000_000),            // gas to attach
@@ -355,7 +381,7 @@ impl Contract {
     /// Function to claim the reward from the farm contract
     #[payable]
     pub fn claim_reward(&mut self) {
-        let seed_id = "exchange.ref-dev.testnet@193".to_string();
+        let seed_id = self.seed_id.to_string();
 
         ext_farm::claim_reward_by_seed(
             seed_id,
@@ -386,9 +412,9 @@ impl Contract {
             PromiseResult::Failed => env::panic_str("ERR_CALL_FAILED"),
         };
 
-        let pool_id_to_add_liquidity = 193;
-        let token_out1 = CONTRACT_ID_EHT_TESTNET;
-        let token_out2 = CONTRACT_ID_DAI_TESTNET;
+        let pool_id_to_add_liquidity = self.pool_id;
+        let token_out1 = self.pool_token1.to_string();
+        let token_out2 = self.pool_token2.to_string();
         let mut quantity_of_token1 = U128(0);
         let mut quantity_of_token2 = U128(0);
 
@@ -400,7 +426,7 @@ impl Contract {
                 quantity_of_token2 = *val
             };
         }
-        let pool_id: u64 = 193;
+        let pool_id: u64 = self.pool_id;
 
         // Add liquidity
         self.call_add_liquidity(
@@ -487,6 +513,7 @@ impl Contract {
             self.user_shares.insert(account, new_user_balance);
         }
     }
+
 
     /// Function to swap near to wnear and send it to ref.
     #[payable]
@@ -606,9 +633,9 @@ impl Contract {
             }
             PromiseResult::Failed => env::panic_str("ERR_CALL_FAILED"),
         };
-        let pool_id_to_add_liquidity = 193;
-        let token_out1: AccountId = CONTRACT_ID_EHT_TESTNET.parse().unwrap();
-        let token_out2: AccountId = CONTRACT_ID_DAI_TESTNET.parse().unwrap();
+        let pool_id_to_add_liquidity = self.pool_id;
+        let token_out1: AccountId = self.pool_token1.parse().unwrap();
+        let token_out2: AccountId = self.pool_token2.parse().unwrap();
         let mut quantity_of_token1 = U128(0);
         let mut quantity_of_token2 = U128(0);
 
@@ -620,7 +647,7 @@ impl Contract {
                 quantity_of_token2 = *val
             };
         }
-        let pool_id: u64 = 193;
+        let pool_id: u64 = self.pool_id;
 
         self.call_add_liquidity(
             pool_id_to_add_liquidity,
@@ -666,9 +693,15 @@ impl Contract {
             PromiseResult::Failed => env::panic_str("ERR_CALL_FAILED"),
         };
 
+        //Concatenate ":" with pool id because ref's testnet contract need an argument like this. Ex -> :193
+        //For Mainnet, probability it is not necessary concatenate the ":"
+        let mut owned_string: String = ":".to_owned();
+        let pool_id: String = self.pool_id.to_owned().to_string();
+        owned_string.push_str(&pool_id);
+
         self.call_stake(
             CONTRACT_ID_FARM.parse().unwrap(),
-            ":193".to_string(),
+            owned_string,
             U128(shares.parse::<u128>().unwrap()),
             "".to_string(),
         );
@@ -743,19 +776,19 @@ impl Contract {
 
         if self
             .last_reward_amount
-            .get(&"exchange.ref-dev.testnet@193#6".to_string())
+            .get(&self.farm_id.to_string())
             == None
         {
             self.last_reward_amount
-                .insert("exchange.ref-dev.testnet@193#6".to_string(), 0);
+                .insert(self.farm_id.to_string(), 0);
         }
 
         let residue: u128 = *self
             .last_reward_amount
-            .get(&"exchange.ref-dev.testnet@193#6".to_string())
+            .get(&self.farm_id.to_string())
             .unwrap();
         self.last_reward_amount.insert(
-            "exchange.ref-dev.testnet@193#6".to_string(),
+            self.farm_id.to_string(),
             amount_in_u128 + residue,
         );
 
@@ -786,7 +819,7 @@ impl Contract {
         let amount: u128 = amount_available;
 
         ///////////////Quantity of shares///////////////
-        let pool_id: u64 = 193;
+        let pool_id: u64 = self.pool_id;
         self.call_get_pool_shares(pool_id.clone(), vault_contract.clone())
             .then(ext_self::callback_update_user_balance(
                 account_id.clone(),
@@ -796,12 +829,12 @@ impl Contract {
             ));
 
         ///////////////Swapping Near to others///////////////
-        let pool_id_to_swap1 = 356; //Id of the eth-wnear pool that will be used for swap
-        let pool_id_to_swap2 = 231; //Id of the dai-wnear pool that will be used for swap
+        let pool_id_to_swap1 = self.pool_id_token1_wrap; //Id of the eth-wnear pool that will be used for swap
+        let pool_id_to_swap2 = self.pool_id_token2_wrap; //Id of the dai-wnear pool that will be used for swap
         let token_in1 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
         let token_in2 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
-        let token_out1 = CONTRACT_ID_EHT_TESTNET.parse().unwrap();
-        let token_out2 = CONTRACT_ID_DAI_TESTNET.parse().unwrap();
+        let token_out1 = self.pool_token1.parse().unwrap();
+        let token_out2 = self.pool_token2.parse().unwrap();
         let min_amount_out = U128(0);
         let amount_in = Some(U128(amount / 2));
 
@@ -879,7 +912,7 @@ impl Contract {
 
         self.user_shares.insert(account_id, 0);
 
-        let pool_id: u64 = 193;
+        let pool_id: u64 = self.pool_id;
         let min_amounts: Vec<U128> = vec![U128(1000), U128(1000)];
 
         // Unstake shares/lps
@@ -1031,8 +1064,8 @@ impl Contract {
             PromiseResult::Failed => env::panic_str("ERR_CALL_FAILED"),
         };
 
-        let token_out1 = CONTRACT_ID_EHT_TESTNET;
-        let token_out2 = CONTRACT_ID_DAI_TESTNET;
+        let token_out1 = self.pool_token1.to_string();
+        let token_out2 = self.pool_token2.to_string();
 
         let mut quantity_of_token1 = U128(0);
         let mut quantity_of_token2 = U128(0);
@@ -1047,12 +1080,12 @@ impl Contract {
         }
 
         ///////////////Swapping Near to others///////////////
-        let pool_id_to_swap1 = 356; //Id of the eth-wnear pool that will be used for swap
-        let pool_id_to_swap2 = 231; //Id of the dai-wnear pool that will be used for swap
+        let pool_id_to_swap1 = self.pool_id_token1_wrap; //Id of the eth-wnear pool that will be used for swap
+        let pool_id_to_swap2 = self.pool_id_token2_wrap; //Id of the dai-wnear pool that will be used for swap
         let token_out1 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
         let token_out2 = CONTRACT_ID_WRAP_TESTNET.parse().unwrap();
-        let token_in1 = CONTRACT_ID_EHT_TESTNET.parse().unwrap();
-        let token_in2 = CONTRACT_ID_DAI_TESTNET.parse().unwrap();
+        let token_in1 = self.pool_token1.parse().unwrap();
+        let token_in2 = self.pool_token2.parse().unwrap();
         let min_amount_out = U128(0);
         let amount_in1 = Some(quantity_of_token1);
         let amount_in2 = Some(quantity_of_token2);
@@ -1107,7 +1140,7 @@ impl Contract {
             PromiseResult::Failed => env::panic_str("ERR_CALL_FAILED"),
         };
 
-        let token_out3 = CONTRACT_ID_REF_TESTNET;
+        let token_out3 = self.reward_token.to_string();
         let mut quantity_of_token = U128(0);
 
         for (key, val) in is_tokens.iter() {
@@ -1117,12 +1150,12 @@ impl Contract {
         }
 
         ///////////////Swapping Near to others///////////////
-        let pool_id_to_swap1 = 321;
-        let pool_id_to_swap2 = 326;
-        let token_in1 = CONTRACT_ID_REF_TESTNET.parse().unwrap();
-        let token_in2 = CONTRACT_ID_REF_TESTNET.parse().unwrap();
-        let token_out1 = CONTRACT_ID_EHT_TESTNET.parse().unwrap();
-        let token_out2 = CONTRACT_ID_DAI_TESTNET.parse().unwrap();
+        let pool_id_to_swap1 = self.pool_id_token1_reward;
+        let pool_id_to_swap2 = self.pool_id_token2_reward;
+        let token_in1 = self.reward_token.parse().unwrap();
+        let token_in2 = self.reward_token.parse().unwrap();
+        let token_out1 = self.pool_token1.parse().unwrap();
+        let token_out2 = self.pool_token2.parse().unwrap();
         let min_amount_out = U128(0);
         let quantity_of_token: u128 = quantity_of_token.into();
         let amount_in = Some(U128(quantity_of_token / 2));
